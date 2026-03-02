@@ -1,0 +1,155 @@
+{
+  "application_name": "LeadMiner",
+  "design_philosophy": {
+    "identity": "The Cyber-Miner",
+    "core_principles": [
+      "Data is beautiful: Visualize scraping processes, don't just list them.",
+      "Darkness with Purpose: Use dark mode to reduce eye strain during long mining sessions.",
+      "Neon Precision: Use bright accents only for status and action, not decoration.",
+      "Density is King: Maximize information density on the dashboard without clutter."
+    ],
+    "vibe": "Archetype 7: Electric & Neon (tempered with Swiss precision)",
+    "target_audience": "Growth Hackers, B2B Sales, Agencies"
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Outfit, sans-serif",
+      "body": "DM Sans, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scale": {
+      "h1": "text-5xl md:text-7xl font-bold tracking-tight",
+      "h2": "text-3xl md:text-5xl font-semibold tracking-tight",
+      "h3": "text-2xl md:text-3xl font-medium",
+      "body": "text-base leading-relaxed text-gray-400",
+      "small": "text-sm font-medium text-gray-500",
+      "label": "text-xs font-bold tracking-widest uppercase text-gray-600"
+    }
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": {
+        "default": "#030712",
+        "paper": "#0f172a",
+        "subtle": "#1e293b"
+      },
+      "text": {
+        "primary": "#f8fafc",
+        "secondary": "#94a3b8",
+        "muted": "#64748b"
+      },
+      "brand": {
+        "primary": "#7c3aed",
+        "primary_hover": "#6d28d9",
+        "secondary": "#0ea5e9",
+        "accent": "#d946ef"
+      },
+      "functional": {
+        "success": "#10b981",
+        "warning": "#f59e0b",
+        "error": "#ef4444",
+        "info": "#3b82f6"
+      },
+      "gradients": {
+        "hero": "bg-gradient-to-r from-violet-600 via-fuchsia-500 to-indigo-600",
+        "subtle_glow": "bg-gradient-to-t from-violet-500/10 to-transparent",
+        "glass": "bg-gray-950/40 backdrop-blur-xl border border-white/5"
+      }
+    }
+  },
+  "components": {
+    "buttons": {
+      "default": "rounded-sm font-medium transition-all duration-200 active:scale-95",
+      "primary": "bg-violet-600 text-white hover:bg-violet-700 hover:shadow-[0_0_20px_rgba(124,58,237,0.5)]",
+      "secondary": "bg-white/5 text-white border border-white/10 hover:bg-white/10",
+      "ghost": "text-gray-400 hover:text-white hover:bg-white/5"
+    },
+    "cards": {
+      "base": "bg-gray-900/50 border border-white/5 rounded-lg overflow-hidden backdrop-blur-sm",
+      "hover": "hover:border-violet-500/30 hover:shadow-lg transition-all duration-300 group"
+    },
+    "inputs": {
+      "base": "bg-gray-950/50 border-gray-800 text-white rounded-md focus:ring-2 focus:ring-violet-500 focus:border-transparent placeholder:text-gray-600"
+    },
+    "badges": {
+      "base": "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
+      "success": "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+      "processing": "bg-blue-500/10 text-blue-400 border border-blue-500/20 animate-pulse",
+      "error": "bg-red-500/10 text-red-400 border border-red-500/20"
+    }
+  },
+  "layout": {
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-4 lg:grid-cols-12 gap-4 md:gap-6",
+    "landing_grid": "grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12 p-4 md:p-8",
+    "spacing": {
+      "section_padding": "py-20 md:py-32",
+      "container_padding": "px-4 md:px-8",
+      "element_gap": "space-y-6"
+    }
+  },
+  "motion": {
+    "transitions": "transition-all duration-300 ease-out",
+    "hover_lift": "hover:-translate-y-1",
+    "loading": "animate-spin-slow"
+  },
+  "images": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1771945701672-70e9be57c6a9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NjZ8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMG5lb24lMjBsaWdodHMlMjBkYXJrfGVufDB8fHx8MTc3MjQ5NTc1OHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract neon data streams",
+      "usage": "Hero section background with heavy overlay (opacity 0.2)"
+    },
+    "features": {
+      "analytics": {
+        "url": "https://images.unsplash.com/photo-1762279389002-7b6abd7bd6c6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwzfHxkYXRhJTIwdmlzdWFsaXphdGlvbiUyMGFic3RyYWN0fGVufDB8fHx8MTc3MjQ5NTc2MXww&ixlib=rb-4.1.0&q=85",
+        "alt": "Data visualization analytics"
+      },
+      "search": {
+        "url": "https://images.unsplash.com/photo-1762279388957-c6ed514d3353?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwyfHxkYXRhJTIwdmlzdWFsaXphdGlvbiUyMGFic3RyYWN0fGVufDB8fHx8MTc3MjQ5NTc2MXww&ixlib=rb-4.1.0&q=85",
+        "alt": "Search discovery graph"
+      }
+    },
+    "testimonials": [
+      {
+        "url": "https://images.unsplash.com/photo-1642886513448-6e6997b8de4a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwzfHxtYW4lMjBpbiUyMHN1aXQlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NzI0OTU3NTl8MA&ixlib=rb-4.1.0&q=85",
+        "name": "Marcus Chen",
+        "role": "CMO at GrowthX"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1625502709763-f5f3880c17ba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwxfHxtYW4lMjBpbiUyMHN1aXQlMjBwb3J0cmFpdHxlbnwwfHx8fDE3NzI0OTU3NTl8MA&ixlib=rb-4.1.0&q=85",
+        "name": "David Miller",
+        "role": "Agency Founder"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1649589244330-09ca58e4fa64?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDV8MHwxfHNlYXJjaHwxfHx3b21hbiUyMHByb2Zlc3Npb25hbCUyMHBvcnRyYWl0fGVufDB8fHx8MTc3MjQ5NTc2MHww&ixlib=rb-4.1.0&q=85",
+        "name": "Sarah Jenkins",
+        "role": "Sales Director"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react' for icons.",
+    "Use 'Outfit' font for headings and 'DM Sans' for body. Import from Google Fonts.",
+    "Implement a 'Bento Grid' layout for the Dashboard.",
+    "Use 'Recharts' for data visualization (already in package.json).",
+    "Ensure all forms use 'react-hook-form' with 'zod' validation.",
+    "Use 'sonner' for notifications.",
+    "Strictly follow the color palette. Do not use default Tailwind blue.",
+    "For the Landing Page Hero: Use the provided background image with a dark gradient overlay.",
+    "For Tables: Use a dense layout with sticky headers and pagination.",
+    "Add 'data-testid' to all interactive elements."
+  ],
+  "universal_guidelines": {
+    "do_not": [
+      "Use 'Inter' font for headings.",
+      "Use gradients for text (unless for very specific hero emphasis).",
+      "Use rounded-full buttons (unless icon-only).",
+      "Center align long paragraphs."
+    ],
+    "must": [
+      "Use proper z-index layering.",
+      "Add hover states to ALL interactive elements.",
+      "Use skeleton loaders for data fetching states."
+    ]
+  }
+}
