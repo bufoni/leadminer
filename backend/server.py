@@ -72,6 +72,7 @@ class User(BaseModel):
     referral_code: str = Field(default_factory=lambda: secrets.token_urlsafe(8))
     referred_by: Optional[str] = None
     role: str = "user"
+    avatar_url: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TokenResponse(BaseModel):
@@ -304,6 +305,32 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
+# ===================== USER ROUTES =====================
+
+@api_router.post("/users/avatar")
+async def upload_avatar(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Upload user avatar (base64)"""
+    try:
+        data = await request.json()
+        avatar_data = data.get('avatar')
+        
+        if not avatar_data:
+            raise HTTPException(status_code=400, detail="No avatar data provided")
+        
+        # Store base64 image directly (for simplicity)
+        # In production, upload to cloud storage (S3, Cloudinary, etc)
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"avatar_url": avatar_data}}
+        )
+        
+        return {"message": "Avatar updated successfully", "avatar_url": avatar_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ===================== REFERRAL ROUTES =====================
 
 @api_router.get("/referrals/my-code", response_model=ReferralStats)
@@ -434,6 +461,19 @@ async def stripe_webhook(request: Request):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@api_router.get("/payments/transactions")
+async def get_transactions(current_user: User = Depends(get_current_user)):
+    transactions = await db.payment_transactions.find(
+        {"user_id": current_user.id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    for tx in transactions:
+        if isinstance(tx.get('created_at'), str):
+            tx['created_at'] = datetime.fromisoformat(tx['created_at'])
+    
+    return transactions
 
 # ===================== ANALYTICS ROUTES =====================
 

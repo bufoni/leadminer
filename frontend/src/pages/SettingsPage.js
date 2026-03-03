@@ -11,11 +11,14 @@ import { toast } from 'sonner';
 import { ArrowLeft, Plus, Trash2, Check, Copy, Gift, Users as UsersIcon } from 'lucide-react';
 
 const SettingsPage = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [proxies, setProxies] = useState([]);
   const [plans, setPlans] = useState({});
   const [referralStats, setReferralStats] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Account form
@@ -36,16 +39,30 @@ const SettingsPage = () => {
 
   const fetchData = async () => {
     try {
-      const [accountsRes, proxiesRes, plansRes, referralRes] = await Promise.all([
-        api.get('/scraping-accounts'),
-        api.get('/proxies'),
+      const requests = [
         api.get('/plans'),
         api.get('/referrals/my-code')
-      ]);
-      setAccounts(accountsRes.data);
-      setProxies(proxiesRes.data);
-      setPlans(plansRes.data);
-      setReferralStats(referralRes.data);
+      ];
+
+      // Only fetch accounts/proxies if admin
+      if (user?.role === 'admin') {
+        requests.push(api.get('/scraping-accounts'));
+        requests.push(api.get('/proxies'));
+      }
+
+      const results = await Promise.all(requests);
+      
+      setPlans(results[0].data);
+      setReferralStats(results[1].data);
+      
+      if (user?.role === 'admin') {
+        setAccounts(results[2].data);
+        setProxies(results[3].data);
+      }
+
+      // Fetch transactions
+      const txResponse = await api.get('/payments/transactions');
+      setTransactions(txResponse.data || []);
     } catch (error) {
       toast.error('Erro ao carregar dados');
     } finally {
@@ -144,6 +161,42 @@ const SettingsPage = () => {
     }
   };
 
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) { // 2MB limit
+        toast.error('Imagem muito grande. Máximo 2MB');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const uploadAvatar = async () => {
+    if (!avatarPreview) return;
+    
+    setUploadingAvatar(true);
+    try {
+      await api.post('/users/avatar', { avatar: avatarPreview });
+      
+      // Update user context
+      const updatedUser = { ...user, avatar_url: avatarPreview };
+      updateUser(updatedUser);
+      
+      toast.success('Avatar atualizado!');
+      setAvatarPreview(null);
+    } catch (error) {
+      toast.error('Erro ao atualizar avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -166,6 +219,8 @@ const SettingsPage = () => {
           <TabsList className="bg-gray-900/50 border border-white/5">
             <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>
             <TabsTrigger data-testid="tab-referral" value="referral">Referral</TabsTrigger>
+            <TabsTrigger data-testid="tab-profile" value="profile">Perfil</TabsTrigger>
+            <TabsTrigger data-testid="tab-billing" value="billing">Histórico</TabsTrigger>
             {user?.role === 'admin' && (
               <>
                 <TabsTrigger data-testid="tab-accounts" value="accounts">Contas Instagram</TabsTrigger>
@@ -306,7 +361,152 @@ const SettingsPage = () => {
             </Card>
           </TabsContent>
 
-          {/* Accounts Tab - Admin Only */}
+          {/* Profile Tab */}
+          <TabsContent value="profile">
+            <Card className="bg-gray-900/50 border-white/5 p-6">
+              <h2 className="text-2xl font-semibold mb-6">Perfil</h2>
+              
+              <div className="space-y-6">
+                {/* Avatar Upload */}
+                <div>
+                  <Label className="text-gray-400 text-sm mb-3 block">Foto de Perfil</Label>
+                  <div className="flex items-center gap-6">
+                    <div className="relative">
+                      {(avatarPreview || user?.avatar_url) ? (
+                        <img 
+                          src={avatarPreview || user.avatar_url} 
+                          alt="Avatar" 
+                          className="w-24 h-24 rounded-full object-cover border-2 border-violet-500"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 rounded-full bg-violet-500/20 flex items-center justify-center border-2 border-violet-500">
+                          <span className="text-3xl text-violet-400 font-semibold">{user?.name?.charAt(0)}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <input
+                        type="file"
+                        id="avatar-upload"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="hidden"
+                        data-testid="avatar-input"
+                      />
+                      <label htmlFor="avatar-upload">
+                        <Button
+                          type="button"
+                          as="span"
+                          variant="outline"
+                          className="border-white/10 text-white hover:bg-white/5 cursor-pointer"
+                        >
+                          Escolher Imagem
+                        </Button>
+                      </label>
+                      {avatarPreview && (
+                        <div className="flex gap-2">
+                          <Button
+                            data-testid="save-avatar-button"
+                            onClick={uploadAvatar}
+                            disabled={uploadingAvatar}
+                            className="bg-violet-600 hover:bg-violet-700 text-white"
+                          >
+                            {uploadingAvatar ? 'Salvando...' : 'Salvar Avatar'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => setAvatarPreview(null)}
+                            className="border-white/10 text-white hover:bg-white/5"
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-400">JPG, PNG ou GIF. Máximo 2MB.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-white/5">
+                  <div>
+                    <Label className="text-gray-400 text-sm">Nome</Label>
+                    <div className="mt-2 text-white">{user?.name}</div>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400 text-sm">Email</Label>
+                    <div className="mt-2 text-white">{user?.email}</div>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400 text-sm">Plano Atual</Label>
+                    <div className="mt-2 text-white capitalize">{user?.plan}</div>
+                  </div>
+                  <div>
+                    <Label className="text-gray-400 text-sm">Função</Label>
+                    <div className="mt-2 text-white capitalize">{user?.role}</div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
+
+          {/* Billing History Tab */}
+          <TabsContent value="billing">
+            <Card className="bg-gray-900/50 border-white/5 p-6">
+              <h2 className="text-2xl font-semibold mb-6">Histórico de Cobranças</h2>
+              
+              {transactions.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-400">Nenhuma cobrança ainda</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {transactions.map((tx) => (
+                    <div
+                      key={tx.id}
+                      data-testid={`transaction-${tx.id}`}
+                      className="flex items-center justify-between p-4 bg-gray-950/50 rounded-lg border border-white/5"
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium text-white mb-1">
+                          Plano {tx.plan.charAt(0).toUpperCase() + tx.plan.slice(1)}
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {new Date(tx.created_at).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <div className="font-semibold text-white">
+                            R$ {tx.amount.toFixed(2)}
+                          </div>
+                          {tx.discount_percent > 0 && (
+                            <div className="text-xs text-emerald-400">
+                              {tx.discount_percent}% desconto
+                            </div>
+                          )}
+                        </div>
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${
+                            tx.payment_status === 'paid'
+                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                              : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20'
+                          }`}
+                        >
+                          {tx.payment_status === 'paid' ? 'Pago' : 'Pendente'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </TabsContent>\n\n          {/* Accounts Tab - Admin Only */}
           {user?.role === 'admin' && (
           <TabsContent value="accounts">
             <Card className="bg-gray-900/50 border-white/5 p-6 mb-6">
