@@ -418,6 +418,18 @@ frontend:
         agent: "testing"
         comment: "Todas as abas funcionando (Plano, Referral, Perfil, Histórico)"
 
+  - task: "Notification Dropdown"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/NotificationDropdown.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Componente de notificações adicionado ao header do dashboard"
+
 metadata:
   created_by: "main_agent"
   version: "1.0"
