@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
@@ -7,15 +7,26 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Plus, X } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, X, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const SearchPage = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [keywords, setKeywords] = useState(['']);
   const [hashtags, setHashtags] = useState(['']);
   const [location, setLocation] = useState('');
+  const [maxLeads, setMaxLeads] = useState(10);
+  
+  // Calculate leads remaining
+  const leadsRemaining = Math.max(0, (user?.leads_limit || 0) - (user?.leads_used || 0));
+  
+  // Update maxLeads when leadsRemaining changes
+  useEffect(() => {
+    if (maxLeads > leadsRemaining) {
+      setMaxLeads(Math.min(leadsRemaining, 10));
+    }
+  }, [leadsRemaining]);
 
   const addKeyword = () => setKeywords([...keywords, '']);
   const removeKeyword = (index) => setKeywords(keywords.filter((_, i) => i !== index));
@@ -47,11 +58,18 @@ const SearchPage = () => {
     }
 
     try {
-      await api.post('/searches', {
+      const response = await api.post('/searches', {
         keywords: validKeywords,
         hashtags: validHashtags,
-        location: location.trim() || null
+        location: location.trim() || null,
+        max_leads: maxLeads
       });
+      
+      // Update user's leads used count optimistically
+      if (updateUser && user) {
+        updateUser({ ...user, leads_used: user.leads_used + maxLeads });
+      }
+      
       toast.success('Busca iniciada com sucesso!');
       window.location.href = '/searches';
     } catch (error) {
@@ -73,14 +91,26 @@ const SearchPage = () => {
         <Card className="bg-gray-900/50 border-white/5 p-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-gray-400">Leads disponíveis</div>
-              <div className="text-2xl font-bold">{user?.leads_limit - user?.leads_used || 0}</div>
+              <div className="text-sm text-gray-400">Leads disponíveis este mês</div>
+              <div className="text-2xl font-bold text-emerald-400">{leadsRemaining}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-sm text-gray-400">Usados / Limite</div>
+              <div className="text-lg font-semibold">{user?.leads_used || 0} / {user?.leads_limit || 0}</div>
             </div>
             <div className="text-right">
               <div className="text-sm text-gray-400">Plano atual</div>
               <div className="text-lg font-semibold capitalize">{user?.plan}</div>
             </div>
           </div>
+          {leadsRemaining === 0 && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-center">
+              <p className="text-red-400 text-sm">Você atingiu o limite de leads do mês. Faça upgrade do seu plano para continuar.</p>
+              <Link to="/settings" className="text-violet-400 hover:text-violet-300 text-sm underline mt-2 inline-block">
+                Ver planos
+              </Link>
+            </div>
+          )}
         </Card>
 
         {/* Search Form */}
@@ -181,11 +211,49 @@ const SearchPage = () => {
               />
             </div>
 
+            {/* Max Leads Selector */}
+            <div className="space-y-3">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-violet-400" />
+                Quantidade de leads desejada
+              </Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  type="range"
+                  min="1"
+                  max={Math.min(leadsRemaining, 50)}
+                  value={maxLeads}
+                  onChange={(e) => setMaxLeads(parseInt(e.target.value))}
+                  className="flex-1 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                  data-testid="max-leads-slider"
+                  disabled={leadsRemaining === 0}
+                />
+                <div className="w-20 text-center">
+                  <Input
+                    type="number"
+                    min="1"
+                    max={Math.min(leadsRemaining, 50)}
+                    value={maxLeads}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 1;
+                      setMaxLeads(Math.min(Math.max(val, 1), Math.min(leadsRemaining, 50)));
+                    }}
+                    className="bg-gray-950/50 border-gray-800 text-white text-center"
+                    data-testid="max-leads-input"
+                    disabled={leadsRemaining === 0}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                Máximo disponível: {Math.min(leadsRemaining, 50)} leads por busca
+              </p>
+            </div>
+
             {/* Submit */}
             <Button
               type="submit"
               data-testid="start-search-button"
-              disabled={loading}
+              disabled={loading || leadsRemaining === 0}
               className="w-full bg-violet-600 hover:bg-violet-700 text-white"
             >
               {loading ? (

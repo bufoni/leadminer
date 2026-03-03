@@ -108,6 +108,7 @@ class SearchCreate(BaseModel):
     keywords: List[str]
     hashtags: List[str] = []
     location: Optional[str] = None
+    max_leads: int = 10  # Quantidade de leads desejada pelo usuário
 
 class Search(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -116,6 +117,7 @@ class Search(BaseModel):
     keywords: List[str]
     hashtags: List[str]
     location: Optional[str] = None
+    max_leads: int = 10  # Quantidade solicitada pelo usuário
     status: str = "queued"
     progress: int = 0
     leads_found: int = 0
@@ -252,6 +254,35 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user_data = await db.users.find_one({"id": user_id}, {"_id": 0})
         if not user_data:
             raise HTTPException(status_code=401, detail="User not found")
+        
+        # Check and reset monthly leads if needed
+        last_reset = user_data.get("leads_reset_date")
+        if not last_reset:
+            created_at = user_data.get("created_at")
+            if isinstance(created_at, str):
+                last_reset = datetime.fromisoformat(created_at)
+            else:
+                last_reset = created_at if created_at else datetime.now(timezone.utc)
+        elif isinstance(last_reset, str):
+            last_reset = datetime.fromisoformat(last_reset)
+        
+        now = datetime.now(timezone.utc)
+        days_since_reset = (now - last_reset).days
+        
+        if days_since_reset >= 30:
+            # Reset leads_used to 0 and update reset date
+            await db.users.update_one(
+                {"id": user_id},
+                {
+                    "$set": {
+                        "leads_used": 0,
+                        "leads_reset_date": now.isoformat()
+                    }
+                }
+            )
+            user_data["leads_used"] = 0
+            user_data["leads_reset_date"] = now.isoformat()
+            logging.info(f"Monthly leads reset for user {user_id}")
         
         if isinstance(user_data.get('created_at'), str):
             user_data['created_at'] = datetime.fromisoformat(user_data['created_at'])
@@ -873,7 +904,43 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
 
 # ===================== SEARCH ROUTES =====================
 
-async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[str], location: Optional[str], user_id: str):
+async def check_and_reset_monthly_leads(user_id: str):
+    """Check if user's leads should be reset (monthly cycle)"""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        return
+    
+    # Get the last reset date or created_at date
+    last_reset = user.get("leads_reset_date")
+    if not last_reset:
+        # Use account creation date as baseline
+        created_at = user.get("created_at")
+        if isinstance(created_at, str):
+            last_reset = datetime.fromisoformat(created_at)
+        else:
+            last_reset = created_at if created_at else datetime.now(timezone.utc)
+    elif isinstance(last_reset, str):
+        last_reset = datetime.fromisoformat(last_reset)
+    
+    # Check if a month has passed
+    now = datetime.now(timezone.utc)
+    days_since_reset = (now - last_reset).days
+    
+    if days_since_reset >= 30:
+        # Reset leads_used to 0 and update reset date
+        await db.users.update_one(
+            {"id": user_id},
+            {
+                "$set": {
+                    "leads_used": 0,
+                    "leads_reset_date": now.isoformat()
+                }
+            }
+        )
+        logging.info(f"Monthly leads reset for user {user_id}")
+
+
+async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[str], location: Optional[str], user_id: str, max_leads: int = 10):
     """Call the scraper microservice to scrape Instagram"""
     try:
         await db.searches.update_one(
@@ -887,6 +954,17 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         
         leads_remaining = user_data["leads_limit"] - user_data["leads_used"]
         
+        # Use the smaller of: user requested amount, remaining leads, or 50 (max per request)
+        leads_to_fetch = min(max_leads, leads_remaining, 50)
+        
+        if leads_to_fetch <= 0:
+            await db.searches.update_one(
+                {"id": search_id},
+                {"$set": {"status": "failed", "progress": 0}}
+            )
+            logging.warning(f"No leads remaining for user {user_id}")
+            return
+        
         # Get scraping accounts and proxies
         accounts = await db.scraping_accounts.find({"status": "active"}, {"_id": 0}).to_list(100)
         proxies = await db.proxies.find({"status": "active"}, {"_id": 0}).to_list(100)
@@ -895,7 +973,7 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         scrape_request = {
             "keywords": keywords,
             "hashtags": hashtags,
-            "max_profiles": min(leads_remaining, 50),
+            "max_profiles": leads_to_fetch,
             "accounts": [{"username": a["username"], "password": a["password"], "status": a["status"]} for a in accounts],
             "proxies": [{"host": p["host"], "port": p["port"], "username": p.get("username"), "password": p.get("password"), "status": p["status"]} for p in proxies]
         }
@@ -923,12 +1001,12 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         except Exception as e:
             logging.warning(f"Scraper service error: {str(e)}. Falling back to local scraper.")
             # Fallback: use local simple scraper
-            all_leads = await fallback_local_scraper(keywords, hashtags, leads_remaining)
+            all_leads = await fallback_local_scraper(keywords, hashtags, leads_to_fetch)
         
         await db.searches.update_one({"id": search_id}, {"$set": {"progress": 70}})
         
-        # Limit to remaining leads
-        all_leads = all_leads[:leads_remaining]
+        # Limit to requested leads
+        all_leads = all_leads[:leads_to_fetch]
         
         # Save leads to database
         for lead_data in all_leads:
@@ -1041,14 +1119,27 @@ async def create_search(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.leads_used >= current_user.leads_limit:
-        raise HTTPException(status_code=400, detail="Lead limit reached. Upgrade your plan.")
+    # Check and reset monthly leads if needed
+    await check_and_reset_monthly_leads(current_user.id)
+    
+    # Reload user data after potential reset
+    user_data = await db.users.find_one({"id": current_user.id}, {"_id": 0})
+    leads_remaining = user_data["leads_limit"] - user_data["leads_used"]
+    
+    if leads_remaining <= 0:
+        raise HTTPException(status_code=400, detail="Limite de leads atingido. Faça upgrade do seu plano.")
+    
+    # Validate max_leads requested
+    max_leads = min(search_data.max_leads, leads_remaining)
+    if max_leads <= 0:
+        raise HTTPException(status_code=400, detail="Quantidade de leads inválida.")
     
     search = Search(
         user_id=current_user.id,
         keywords=search_data.keywords,
         hashtags=search_data.hashtags,
-        location=search_data.location
+        location=search_data.location,
+        max_leads=max_leads
     )
     
     search_dict = search.model_dump()
@@ -1061,7 +1152,8 @@ async def create_search(
         search_data.keywords,
         search_data.hashtags,
         search_data.location,
-        current_user.id
+        current_user.id,
+        max_leads
     )
     
     return search
