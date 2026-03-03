@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { Card } from '../components/ui/card';
@@ -43,28 +43,17 @@ const Analytics = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-        <div className="text-white">Carregando analytics...</div>
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-white">Carregando analytics...</div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#030712]">
-      {/* Header */}
-      <header className="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#030712]/80">
-        <div className="container mx-auto px-4 py-4">
-          <Link to="/dashboard">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+    <DashboardLayout>
+      <div className="p-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Analytics Avançado</h1>
           <p className="text-gray-400">Insights detalhados sobre seus leads e performance</p>
@@ -211,7 +200,7 @@ const Analytics = () => {
           </div>
         </Card>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

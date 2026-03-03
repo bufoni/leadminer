@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import DashboardLayout from '../components/DashboardLayout';
 import api from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Textarea } from '../components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Search, ExternalLink } from 'lucide-react';
+import { Download, Search, ExternalLink, Edit2, X } from 'lucide-react';
 
 const LeadsPage = () => {
   const [searchParams] = useSearchParams();
@@ -17,6 +21,9 @@ const LeadsPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [qualificationFilter, setQualificationFilter] = useState('all');
+  const [editingLead, setEditingLead] = useState(null);
+  const [editNotes, setEditNotes] = useState('');
 
   useEffect(() => {
     fetchLeads();
@@ -24,7 +31,7 @@ const LeadsPage = () => {
 
   useEffect(() => {
     filterLeads();
-  }, [leads, searchTerm, statusFilter]);
+  }, [leads, searchTerm, statusFilter, qualificationFilter]);
 
   const fetchLeads = async () => {
     try {
@@ -54,6 +61,10 @@ const LeadsPage = () => {
       filtered = filtered.filter((lead) => lead.status === statusFilter);
     }
 
+    if (qualificationFilter !== 'all') {
+      filtered = filtered.filter((lead) => lead.qualification === qualificationFilter);
+    }
+
     setFilteredLeads(filtered);
   };
 
@@ -68,6 +79,40 @@ const LeadsPage = () => {
       toast.success('Status atualizado');
     } catch (error) {
       toast.error('Erro ao atualizar status');
+    }
+  };
+
+  const updateLeadQualification = async (leadId, newQualification) => {
+    try {
+      await api.patch(`/leads/${leadId}`, { qualification: newQualification });
+      setLeads(
+        leads.map((lead) =>
+          lead.id === leadId ? { ...lead, qualification: newQualification } : lead
+        )
+      );
+      toast.success('Qualificação atualizada');
+    } catch (error) {
+      toast.error('Erro ao atualizar qualificação');
+    }
+  };
+
+  const openEditDialog = (lead) => {
+    setEditingLead(lead);
+    setEditNotes(lead.notes || '');
+  };
+
+  const saveNotes = async () => {
+    try {
+      await api.patch(`/leads/${editingLead.id}`, { notes: editNotes });
+      setLeads(
+        leads.map((lead) =>
+          lead.id === editingLead.id ? { ...lead, notes: editNotes } : lead
+        )
+      );
+      setEditingLead(null);
+      toast.success('Notas salvas');
+    } catch (error) {
+      toast.error('Erro ao salvar notas');
     }
   };
 
@@ -92,7 +137,7 @@ const LeadsPage = () => {
   const getStatusColor = (status) => {
     const colors = {
       new: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-      contacted: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+      contacted: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
       discarded: 'text-red-400 bg-red-500/10 border-red-500/20'
     };
     return colors[status] || colors.new;
@@ -107,30 +152,28 @@ const LeadsPage = () => {
     return text[status] || status;
   };
 
+  const getQualificationColor = (qualification) => {
+    const colors = {
+      quente: 'text-red-400 bg-red-500/10 border-red-500/20',
+      morno: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
+      frio: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+    };
+    return colors[qualification] || colors.morno;
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-        <div className="text-white">Carregando...</div>
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-white">Carregando...</div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#030712]">
-      {/* Header */}
-      <header className="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#030712]/80">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <Link to="/dashboard">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+    <DashboardLayout>
+      <div className="p-8">
         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-4xl font-bold mb-2">Leads</h1>
@@ -148,7 +191,7 @@ const LeadsPage = () => {
 
         {/* Filters */}
         <Card className="bg-gray-900/50 border-white/5 p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -168,6 +211,17 @@ const LeadsPage = () => {
                 <SelectItem value="new">Novo</SelectItem>
                 <SelectItem value="contacted">Contatado</SelectItem>
                 <SelectItem value="discarded">Descartado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={qualificationFilter} onValueChange={setQualificationFilter}>
+              <SelectTrigger data-testid="qualification-filter" className="bg-gray-950/50 border-gray-800 text-white">
+                <SelectValue placeholder="Filtrar por qualificação" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                <SelectItem value="all">Todas as qualificações</SelectItem>
+                <SelectItem value="quente">Quente</SelectItem>
+                <SelectItem value="morno">Morno</SelectItem>
+                <SelectItem value="frio">Frio</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -192,7 +246,7 @@ const LeadsPage = () => {
               >
                 <div className="flex flex-col md:flex-row gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold text-lg">{lead.name || lead.username}</h3>
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(
@@ -200,6 +254,13 @@ const LeadsPage = () => {
                         )}`}
                       >
                         {getStatusText(lead.status)}
+                      </span>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getQualificationColor(
+                          lead.qualification || 'morno'
+                        )}`}
+                      >
+                        {lead.qualification || 'morno'}
                       </span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-400">
@@ -210,6 +271,11 @@ const LeadsPage = () => {
                     </div>
                     {lead.bio && (
                       <p className="text-sm text-gray-400 mt-2 line-clamp-2">{lead.bio}</p>
+                    )}
+                    {lead.notes && (
+                      <div className="mt-2 p-2 bg-gray-950/50 rounded text-sm text-gray-300">
+                        <strong>Notas:</strong> {lead.notes}
+                      </div>
                     )}
                   </div>
 
@@ -222,22 +288,85 @@ const LeadsPage = () => {
                     >
                       Ver perfil <ExternalLink className="h-3 w-3" />
                     </a>
-                    <Select
-                      value={lead.status}
-                      onValueChange={(value) => updateLeadStatus(lead.id, value)}
-                    >
-                      <SelectTrigger
-                        data-testid={`lead-status-${lead.id}`}
-                        className="bg-gray-950/50 border-gray-800 text-white w-[140px]"
+                    <div className="flex gap-2">
+                      <Select
+                        value={lead.status}
+                        onValueChange={(value) => updateLeadStatus(lead.id, value)}
                       >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-900 border-gray-800 text-white">
-                        <SelectItem value="new">Novo</SelectItem>
-                        <SelectItem value="contacted">Contatado</SelectItem>
-                        <SelectItem value="discarded">Descartado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                        <SelectTrigger
+                          data-testid={`lead-status-${lead.id}`}
+                          className="bg-gray-950/50 border-gray-800 text-white w-[130px]"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                          <SelectItem value="new">Novo</SelectItem>
+                          <SelectItem value="contacted">Contatado</SelectItem>
+                          <SelectItem value="discarded">Descartado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={lead.qualification || 'morno'}
+                        onValueChange={(value) => updateLeadQualification(lead.id, value)}
+                      >
+                        <SelectTrigger
+                          data-testid={`lead-qualification-${lead.id}`}
+                          className="bg-gray-950/50 border-gray-800 text-white w-[110px]"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                          <SelectItem value="quente">Quente</SelectItem>
+                          <SelectItem value="morno">Morno</SelectItem>
+                          <SelectItem value="frio">Frio</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Dialog open={editingLead?.id === lead.id} onOpenChange={(open) => !open && setEditingLead(null)}>
+                      <DialogTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditDialog(lead)}
+                          className="border-white/10 text-white hover:bg-white/5"
+                        >
+                          <Edit2 className="h-4 w-4 mr-1" />
+                          Notas
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-gray-900 border-white/5 text-white">
+                        <DialogHeader>
+                          <DialogTitle>Notas do Lead</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 mt-4">
+                          <div>
+                            <Label>Notas</Label>
+                            <Textarea
+                              value={editNotes}
+                              onChange={(e) => setEditNotes(e.target.value)}
+                              placeholder="Adicione suas anotações sobre este lead..."
+                              className="bg-gray-950/50 border-gray-800 text-white mt-2"
+                              rows={6}
+                            />
+                          </div>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="outline"
+                              onClick={() => setEditingLead(null)}
+                              className="border-white/10 text-white hover:bg-white/5"
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              onClick={saveNotes}
+                              className="bg-violet-600 hover:bg-violet-700 text-white"
+                            >
+                              Salvar
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
               </Card>
@@ -245,7 +374,7 @@ const LeadsPage = () => {
           </div>
         )}
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -146,28 +146,17 @@ const SettingsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-        <div className="text-white">Carregando...</div>
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-white">Carregando...</div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#030712]">
-      {/* Header */}
-      <header className="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#030712]/80">
-        <div className="container mx-auto px-4 py-4">
-          <Link to="/dashboard">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
+    <DashboardLayout>
+      <div className="p-8 max-w-5xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Configurações</h1>
           <p className="text-gray-400">Gerencie suas contas, proxies e plano</p>
@@ -177,8 +166,12 @@ const SettingsPage = () => {
           <TabsList className="bg-gray-900/50 border border-white/5">
             <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>
             <TabsTrigger data-testid="tab-referral" value="referral">Referral</TabsTrigger>
-            <TabsTrigger data-testid="tab-accounts" value="accounts">Contas Instagram</TabsTrigger>
-            <TabsTrigger data-testid="tab-proxies" value="proxies">Proxies</TabsTrigger>
+            {user?.role === 'admin' && (
+              <>
+                <TabsTrigger data-testid="tab-accounts" value="accounts">Contas Instagram</TabsTrigger>
+                <TabsTrigger data-testid="tab-proxies" value="proxies">Proxies</TabsTrigger>
+              </>
+            )}
           </TabsList>
 
           {/* Plan Tab */}
@@ -313,7 +306,8 @@ const SettingsPage = () => {
             </Card>
           </TabsContent>
 
-          {/* Accounts Tab */}
+          {/* Accounts Tab - Admin Only */}
+          {user?.role === 'admin' && (
           <TabsContent value="accounts">
             <Card className="bg-gray-900/50 border-white/5 p-6 mb-6">
               <h2 className="text-xl font-semibold mb-4">Adicionar Conta do Instagram</h2>
@@ -394,8 +388,10 @@ const SettingsPage = () => {
               )}
             </Card>
           </TabsContent>
+          )}
 
-          {/* Proxies Tab */}
+          {/* Proxies Tab - Admin Only */}
+          {user?.role === 'admin' && (
           <TabsContent value="proxies">
             <Card className="bg-gray-900/50 border-white/5 p-6 mb-6">
               <h2 className="text-xl font-semibold mb-4">Adicionar Proxy</h2>
@@ -499,9 +495,10 @@ const SettingsPage = () => {
               )}
             </Card>
           </TabsContent>
+          )}
         </Tabs>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

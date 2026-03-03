@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import DashboardLayout from '../components/DashboardLayout';
 import api from '../lib/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
-import { Users, Search, TrendingUp, Package, LogOut } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Users, Search, TrendingUp, Package } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [searches, setSearches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,11 +35,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
   const getStatusColor = (status) => {
     const colors = {
       queued: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
@@ -62,35 +57,17 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-        <div className="text-white">Carregando...</div>
-      </div>
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-white">Carregando...</div>
+        </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#030712]">
-      {/* Header */}
-      <header className="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#030712]/80">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold text-gradient">LeadMiner</div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-400">{user?.name}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="logout-button"
-              onClick={handleLogout}
-              className="text-gray-400 hover:text-white"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+    <DashboardLayout>
+      <div className="p-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
           <p className="text-gray-400">Bem-vindo de volta, {user?.name}!</p>
@@ -210,7 +187,7 @@ const Dashboard = () => {
           )}
         </Card>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

@@ -71,6 +71,7 @@ class User(BaseModel):
     leads_limit: int = 10
     referral_code: str = Field(default_factory=lambda: secrets.token_urlsafe(8))
     referred_by: Optional[str] = None
+    role: str = "user"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TokenResponse(BaseModel):
@@ -108,12 +109,16 @@ class Lead(BaseModel):
     profile_url: str
     followers: Optional[int] = None
     status: str = "new"
+    qualification: str = "morno"
+    notes: str = ""
     tags: List[str] = []
     source: str = "hashtag"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class LeadUpdate(BaseModel):
     status: Optional[str] = None
+    qualification: Optional[str] = None
+    notes: Optional[str] = None
     tags: Optional[List[str]] = None
 
 class ScrapingAccount(BaseModel):
@@ -231,6 +236,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except Exception as e:
         raise HTTPException(status_code=401, detail=str(e))
 
+async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
 # ===================== AUTH ROUTES =====================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
@@ -238,6 +248,10 @@ async def register(user_data: UserCreate):
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Check if this is the first user (make them admin)
+    user_count = await db.users.count_documents({})
+    role = "admin" if user_count == 0 else "user"
     
     referred_by = None
     if user_data.referral_code:
@@ -255,7 +269,8 @@ async def register(user_data: UserCreate):
         plan="trial",
         leads_used=0,
         leads_limit=PLANS["trial"]["leads_limit"],
-        referred_by=referred_by
+        referred_by=referred_by,
+        role=role
     )
     
     user_dict = user.model_dump()
@@ -723,12 +738,12 @@ async def export_leads_csv(current_user: User = Depends(get_current_user)):
         headers={"Content-Disposition": "attachment; filename=leads.csv"}
     )
 
-# ===================== SCRAPING ACCOUNTS ROUTES =====================
+# ===================== SCRAPING ACCOUNTS ROUTES (ADMIN ONLY) =====================
 
 @api_router.post("/scraping-accounts", response_model=ScrapingAccount)
 async def create_scraping_account(
     account_data: ScrapingAccountCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ):
     account = ScrapingAccount(
         username=account_data.username,
@@ -741,7 +756,7 @@ async def create_scraping_account(
     return account
 
 @api_router.get("/scraping-accounts", response_model=List[ScrapingAccount])
-async def get_scraping_accounts(current_user: User = Depends(get_current_user)):
+async def get_scraping_accounts(current_user: User = Depends(get_admin_user)):
     accounts = await db.scraping_accounts.find({}, {"_id": 0, "password": 0}).to_list(100)
     
     for account in accounts:
@@ -758,19 +773,19 @@ async def get_scraping_accounts(current_user: User = Depends(get_current_user)):
 @api_router.delete("/scraping-accounts/{account_id}")
 async def delete_scraping_account(
     account_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ):
     result = await db.scraping_accounts.delete_one({"id": account_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Account not found")
     return {"message": "Account deleted"}
 
-# ===================== PROXY ROUTES =====================
+# ===================== PROXY ROUTES (ADMIN ONLY) =====================
 
 @api_router.post("/proxies", response_model=Proxy)
 async def create_proxy(
     proxy_data: ProxyCreate,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ):
     proxy = Proxy(
         host=proxy_data.host,
@@ -785,14 +800,14 @@ async def create_proxy(
     return proxy
 
 @api_router.get("/proxies", response_model=List[Proxy])
-async def get_proxies(current_user: User = Depends(get_current_user)):
+async def get_proxies(current_user: User = Depends(get_admin_user)):
     proxies = await db.proxies.find({}, {"_id": 0}).to_list(100)
     return proxies
 
 @api_router.delete("/proxies/{proxy_id}")
 async def delete_proxy(
     proxy_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_admin_user)
 ):
     result = await db.proxies.delete_one({"id": proxy_id})
     if result.deleted_count == 0:

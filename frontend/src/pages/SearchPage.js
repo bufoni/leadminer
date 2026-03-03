@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { Button } from '../components/ui/button';
@@ -11,7 +11,6 @@ import { ArrowLeft, Loader2, Plus, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const SearchPage = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [keywords, setKeywords] = useState(['']);
@@ -54,7 +53,7 @@ const SearchPage = () => {
         location: location.trim() || null
       });
       toast.success('Busca iniciada com sucesso!');
-      navigate('/searches');
+      window.location.href = '/searches';
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Erro ao iniciar busca');
     } finally {
@@ -63,21 +62,8 @@ const SearchPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#030712]">
-      {/* Header */}
-      <header className="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#030712]/80">
-        <div className="container mx-auto px-4 py-4">
-          <Link to="/dashboard">
-            <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar
-            </Button>
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <DashboardLayout>
+      <div className="p-8 max-w-3xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Nova Busca</h1>
           <p className="text-gray-400">Configure os parâmetros para encontrar leads no Instagram</p>
@@ -214,7 +200,7 @@ const SearchPage = () => {
           </form>
         </Card>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 
