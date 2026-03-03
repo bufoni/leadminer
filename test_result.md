@@ -386,4 +386,8 @@ agent_communication:
   - agent: "main"
     message: "Solicitação do usuário para validar todos os testes do backend. Serviços reiniciados com sucesso. Por favor, execute todos os testes de API do backend para validação completa."
   - agent: "testing"
+    message: "Validação completa executada - 14/14 endpoints passaram com sucesso. Todos os endpoints de Auth, Dashboard, Search, Leads, Scraping Accounts, Proxies, Plans e Payment estão funcionando corretamente."
+  - agent: "main"
+    message: "Todos os testes do backend foram validados com sucesso. Sistema pronto para uso."
+  - agent: "testing"
     message: "✅ VALIDAÇÃO COMPLETA CONCLUÍDA: Todos os 14 endpoints do backend testados e funcionais. Taxa de sucesso: 100%. Sistema LeadMiner está operacional e pronto para uso. Inclui: autenticação JWT, dashboard, buscas com scraping local, leads CRUD, exportação CSV, admin CRUD (contas/proxies), planos e pagamentos Stripe. Scraper microservice usa fallback local conforme esperado."
