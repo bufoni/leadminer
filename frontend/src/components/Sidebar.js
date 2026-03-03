@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { LayoutDashboard, TrendingUp, Search, List, Users, Settings, LogOut, Plus, ChevronLeft, ChevronRight, Bell } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Search, List, Users, Settings, LogOut, Plus, ChevronLeft, ChevronRight, Bell, Shield } from 'lucide-react';
 import api from '../lib/api';
 
 const Sidebar = () => {
@@ -59,6 +59,11 @@ const Sidebar = () => {
     { path: '/leads', label: 'Leads', icon: Users },
     { path: '/settings', label: 'Configurações', icon: Settings },
   ];
+
+  // Admin menu items (only shown to admin users)
+  const adminMenuItems = user?.role === 'admin' ? [
+    { path: '/admin', label: 'Admin', icon: Shield, isAdmin: true },
+  ] : [];
 
   const isActive = (path) => location.pathname === path;
 
@@ -193,6 +198,36 @@ const Sidebar = () => {
             </Link>
           );
         })}
+
+        {/* Admin Section */}
+        {adminMenuItems.length > 0 && (
+          <>
+            {!collapsed && (
+              <div className="text-xs text-gray-500 uppercase tracking-wide px-4 pt-4 pb-2">
+                Administração
+              </div>
+            )}
+            {adminMenuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  data-testid={`sidebar-${item.label.toLowerCase()}`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                    isActive(item.path)
+                      ? 'bg-red-600 text-white'
+                      : 'text-red-400 hover:text-white hover:bg-red-500/10'
+                  } ${collapsed ? 'justify-center' : ''}`}
+                  title={collapsed ? item.label : ''}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                </Link>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       {/* Logout */}

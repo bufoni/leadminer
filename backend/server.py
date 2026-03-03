@@ -29,6 +29,10 @@ except ImportError:
     GoogleAuth = None
     SessionRequest = None
 
+# Facebook OAuth config
+FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID', '')
+FACEBOOK_APP_SECRET = os.environ.get('FACEBOOK_APP_SECRET', '')
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -322,6 +326,188 @@ async def login(credentials: UserLogin):
 @api_router.get("/auth/me", response_model=User)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+# ===================== FACEBOOK AUTH ROUTES =====================
+
+@api_router.post("/auth/facebook/session")
+async def create_facebook_auth_session(request: Request):
+    """Create Facebook OAuth session - returns auth URL"""
+    try:
+        data = await request.json()
+        redirect_url = data.get('redirect_url')
+        
+        if not redirect_url:
+            raise HTTPException(status_code=400, detail="redirect_url is required")
+        
+        if not FACEBOOK_APP_ID:
+            raise HTTPException(status_code=503, detail="Facebook App ID not configured")
+        
+        # Generate a unique state for CSRF protection
+        state = secrets.token_urlsafe(32)
+        
+        # Store the state and redirect_url temporarily (in production, use Redis)
+        await db.oauth_states.insert_one({
+            "state": state,
+            "redirect_url": redirect_url,
+            "provider": "facebook",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Build Facebook OAuth URL
+        facebook_auth_url = (
+            f"https://www.facebook.com/v18.0/dialog/oauth?"
+            f"client_id={FACEBOOK_APP_ID}"
+            f"&redirect_uri={redirect_url}"
+            f"&scope=email,public_profile"
+            f"&response_type=code"
+            f"&state={state}"
+        )
+        
+        return {
+            "session_id": state,
+            "auth_url": facebook_auth_url
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Facebook auth session error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/auth/facebook/callback")
+async def facebook_auth_callback(request: Request):
+    """Handle Facebook OAuth callback and create/login user"""
+    try:
+        data = await request.json()
+        code = data.get('code')
+        state = data.get('state')
+        
+        if not code:
+            raise HTTPException(status_code=400, detail="Authorization code is required")
+        
+        # Verify state (CSRF protection)
+        oauth_state = await db.oauth_states.find_one({"state": state}, {"_id": 0})
+        if not oauth_state:
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+        
+        redirect_url = oauth_state.get('redirect_url')
+        
+        # Clean up the used state
+        await db.oauth_states.delete_one({"state": state})
+        
+        if not FACEBOOK_APP_ID or not FACEBOOK_APP_SECRET:
+            raise HTTPException(status_code=503, detail="Facebook OAuth not configured")
+        
+        # Exchange code for access token
+        import httpx
+        token_url = "https://graph.facebook.com/v18.0/oauth/access_token"
+        token_params = {
+            "client_id": FACEBOOK_APP_ID,
+            "client_secret": FACEBOOK_APP_SECRET,
+            "redirect_uri": redirect_url,
+            "code": code
+        }
+        
+        async with httpx.AsyncClient() as client:
+            token_response = await client.get(token_url, params=token_params)
+            if token_response.status_code != 200:
+                logging.error(f"Facebook token error: {token_response.text}")
+                raise HTTPException(status_code=400, detail="Failed to exchange authorization code")
+            
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+            
+            if not access_token:
+                raise HTTPException(status_code=400, detail="No access token received")
+            
+            # Get user info from Facebook Graph API
+            graph_url = "https://graph.facebook.com/v18.0/me"
+            graph_params = {
+                "fields": "id,name,email,picture.width(200).height(200)",
+                "access_token": access_token
+            }
+            
+            user_response = await client.get(graph_url, params=graph_params)
+            if user_response.status_code != 200:
+                logging.error(f"Facebook user info error: {user_response.text}")
+                raise HTTPException(status_code=400, detail="Failed to retrieve user info")
+            
+            user_info = user_response.json()
+        
+        facebook_id = user_info.get("id")
+        email = user_info.get("email")
+        name = user_info.get("name")
+        picture_data = user_info.get("picture", {})
+        picture_url = picture_data.get("data", {}).get("url") if isinstance(picture_data, dict) else None
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not provided by Facebook. Please grant email permission.")
+        
+        # Check if user exists by Facebook ID
+        existing_user = await db.users.find_one({"facebook_id": facebook_id}, {"_id": 0})
+        
+        if existing_user:
+            # Update profile info
+            await db.users.update_one(
+                {"facebook_id": facebook_id},
+                {"$set": {"name": name, "avatar_url": picture_url}}
+            )
+            
+            if isinstance(existing_user.get('created_at'), str):
+                existing_user['created_at'] = datetime.fromisoformat(existing_user['created_at'])
+            
+            user = User(**{k: v for k, v in existing_user.items() if k != "password"})
+            token = create_token(user.id)
+            
+            return {"token": token, "user": user.model_dump(), "is_new": False}
+        
+        # Check if email exists
+        existing_email_user = await db.users.find_one({"email": email}, {"_id": 0})
+        
+        if existing_email_user:
+            # Link Facebook ID to existing email account
+            await db.users.update_one(
+                {"email": email},
+                {"$set": {"facebook_id": facebook_id, "avatar_url": picture_url or existing_email_user.get("avatar_url")}}
+            )
+            
+            if isinstance(existing_email_user.get('created_at'), str):
+                existing_email_user['created_at'] = datetime.fromisoformat(existing_email_user['created_at'])
+            
+            user = User(**{k: v for k, v in existing_email_user.items() if k != "password"})
+            token = create_token(user.id)
+            
+            return {"token": token, "user": user.model_dump(), "is_new": False}
+        
+        # Create new user
+        user_count = await db.users.count_documents({})
+        role = "admin" if user_count == 0 else "user"
+        
+        new_user = User(
+            email=email,
+            name=name or email.split('@')[0],
+            plan="trial",
+            leads_used=0,
+            leads_limit=PLANS["trial"]["leads_limit"],
+            role=role,
+            avatar_url=picture_url
+        )
+        
+        user_dict = new_user.model_dump()
+        user_dict["password"] = hash_password(secrets.token_urlsafe(32))
+        user_dict["created_at"] = user_dict["created_at"].isoformat()
+        user_dict["total_referrals"] = 0
+        user_dict["facebook_id"] = facebook_id
+        
+        await db.users.insert_one(user_dict)
+        
+        token = create_token(new_user.id)
+        return {"token": token, "user": new_user.model_dump(), "is_new": True}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Facebook auth callback error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ===================== GOOGLE AUTH ROUTES =====================
 
@@ -966,6 +1152,71 @@ async def delete_proxy(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Proxy not found")
     return {"message": "Proxy deleted"}
+
+# ===================== ADMIN ROUTES =====================
+
+class AdminStats(BaseModel):
+    total_users: int
+    total_leads: int
+    total_searches: int
+    active_accounts: int
+    active_proxies: int
+    leads_today: int
+    searches_today: int
+
+@api_router.get("/admin/stats", response_model=AdminStats)
+async def get_admin_stats(current_user: User = Depends(get_admin_user)):
+    """Get admin dashboard statistics"""
+    total_users = await db.users.count_documents({})
+    total_leads = await db.leads.count_documents({})
+    total_searches = await db.searches.count_documents({})
+    active_accounts = await db.scraping_accounts.count_documents({"status": "active"})
+    active_proxies = await db.proxies.count_documents({"status": "active"})
+    
+    # Today's stats
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    leads_today = await db.leads.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    searches_today = await db.searches.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    
+    return AdminStats(
+        total_users=total_users,
+        total_leads=total_leads,
+        total_searches=total_searches,
+        active_accounts=active_accounts,
+        active_proxies=active_proxies,
+        leads_today=leads_today,
+        searches_today=searches_today
+    )
+
+@api_router.get("/admin/users")
+async def get_admin_users(current_user: User = Depends(get_admin_user)):
+    """Get all users list for admin"""
+    users = await db.users.find({}, {"_id": 0, "password": 0}).sort("created_at", -1).to_list(100)
+    
+    for user in users:
+        if isinstance(user.get('created_at'), str):
+            user['created_at'] = datetime.fromisoformat(user['created_at'])
+    
+    return users
+
+@api_router.get("/admin/recent-searches")
+async def get_admin_recent_searches(current_user: User = Depends(get_admin_user)):
+    """Get recent searches across all users"""
+    searches = await db.searches.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    
+    # Enrich with user email
+    for search in searches:
+        if isinstance(search.get('created_at'), str):
+            search['created_at'] = datetime.fromisoformat(search['created_at'])
+        if search.get('finished_at') and isinstance(search['finished_at'], str):
+            search['finished_at'] = datetime.fromisoformat(search['finished_at'])
+        
+        # Get user email
+        user = await db.users.find_one({"id": search.get("user_id")}, {"_id": 0, "email": 1})
+        if user:
+            search['user_email'] = user.get('email')
+    
+    return searches
 
 # ===================== PLANS ROUTE =====================
 

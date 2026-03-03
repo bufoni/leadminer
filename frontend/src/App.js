@@ -6,12 +6,14 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import GoogleAuthCallback from './pages/GoogleAuthCallback';
+import FacebookAuthCallback from './pages/FacebookAuthCallback';
 import Dashboard from './pages/Dashboard';
 import SearchPage from './pages/SearchPage';
 import SearchesPage from './pages/SearchesPage';
 import LeadsPage from './pages/LeadsPage';
 import SettingsPage from './pages/SettingsPage';
 import Analytics from './pages/Analytics';
+import AdminDashboard from './pages/AdminDashboard';
 import api from './lib/api';
 import { toast } from 'sonner';
 import './App.css';
@@ -127,6 +129,10 @@ function App() {
             element={<GoogleAuthCallback />}
           />
           <Route
+            path="/auth/facebook/callback"
+            element={<FacebookAuthCallback />}
+          />
+          <Route
             path="/dashboard"
             element={
               <PrivateRoute>
@@ -171,6 +177,14 @@ function App() {
             element={
               <PrivateRoute>
                 <Analytics />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <PrivateRoute>
+                <AdminDashboard />
               </PrivateRoute>
             }
           />
