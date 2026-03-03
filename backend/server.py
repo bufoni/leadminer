@@ -16,6 +16,7 @@ import asyncio
 from playwright.async_api import async_playwright
 import random
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+from emergentintegrations.auth.google.oauth import GoogleAuth, SessionRequest
 from scraper import InstagramScraper
 import secrets
 
@@ -36,6 +37,10 @@ JWT_EXPIRATION_HOURS = 720
 
 # Stripe
 STRIPE_API_KEY = os.environ['STRIPE_API_KEY']
+
+# Google Auth
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', 'emergentagent_oauth')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', 'emergentagent_secret')
 
 # Plans configuration
 PLANS = {
@@ -304,6 +309,95 @@ async def login(credentials: UserLogin):
 @api_router.get("/auth/me", response_model=User)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+# ===================== GOOGLE AUTH ROUTES =====================
+
+@api_router.post("/auth/google/session")
+async def create_google_auth_session(request: Request):
+    """Create Google OAuth session"""
+    try:
+        data = await request.json()
+        redirect_url = data.get('redirect_url')
+        
+        if not redirect_url:
+            raise HTTPException(status_code=400, detail="redirect_url is required")
+        
+        google_auth = GoogleAuth(
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET
+        )
+        
+        session_request = SessionRequest(redirect_url=redirect_url)
+        session_response = await google_auth.create_session(session_request)
+        
+        return {
+            "session_id": session_response.session_id,
+            "auth_url": session_response.auth_url
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/auth/google/callback")
+async def google_auth_callback(request: Request):
+    """Handle Google OAuth callback and create/login user"""
+    try:
+        data = await request.json()
+        session_id = data.get('session_id')
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="session_id is required")
+        
+        google_auth = GoogleAuth(
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET
+        )
+        
+        # Get user info from Google
+        user_info = await google_auth.get_user_info(session_id)
+        
+        if not user_info or not user_info.email:
+            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+        
+        # Check if user exists
+        existing_user = await db.users.find_one({"email": user_info.email}, {"_id": 0})
+        
+        if existing_user:
+            # Login existing user
+            if isinstance(existing_user.get('created_at'), str):
+                existing_user['created_at'] = datetime.fromisoformat(existing_user['created_at'])
+            
+            user = User(**{k: v for k, v in existing_user.items() if k != "password"})
+            token = create_token(user.id)
+            
+            return {"token": token, "user": user.model_dump(), "is_new": False}
+        else:
+            # Create new user
+            user_count = await db.users.count_documents({})
+            role = "admin" if user_count == 0 else "user"
+            
+            new_user = User(
+                email=user_info.email,
+                name=user_info.name or user_info.email.split('@')[0],
+                plan="trial",
+                leads_used=0,
+                leads_limit=PLANS["trial"]["leads_limit"],
+                role=role,
+                avatar_url=user_info.picture
+            )
+            
+            user_dict = new_user.model_dump()
+            user_dict["password"] = hash_password(secrets.token_urlsafe(32))  # Random password
+            user_dict["created_at"] = user_dict["created_at"].isoformat()
+            user_dict["total_referrals"] = 0
+            
+            await db.users.insert_one(user_dict)
+            
+            token = create_token(new_user.id)
+            return {"token": token, "user": new_user.model_dump(), "is_new": True}
+            
+    except Exception as e:
+        logging.error(f"Google auth callback error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ===================== USER ROUTES =====================
 

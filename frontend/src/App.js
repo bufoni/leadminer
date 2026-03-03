@@ -5,6 +5,7 @@ import { Toaster } from './components/ui/sonner';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import GoogleAuthCallback from './pages/GoogleAuthCallback';
 import Dashboard from './pages/Dashboard';
 import SearchPage from './pages/SearchPage';
 import SearchesPage from './pages/SearchesPage';
@@ -120,6 +121,10 @@ function App() {
                 <Register />
               </PublicRoute>
             }
+          />
+          <Route
+            path="/auth/google/callback"
+            element={<GoogleAuthCallback />}
           />
           <Route
             path="/dashboard"
