@@ -1,0 +1,137 @@
+{
+  "timestamp": "2026-03-03T00:08:16.989511",
+  "base_url": "https://lead-scraper-8.preview.emergentagent.com",
+  "summary": {
+    "tests_run": 18,
+    "tests_passed": 18,
+    "success_rate": 100.0
+  },
+  "results": [
+    {
+      "test_name": "Auth - User Registration",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "User ID: a07fcd06-4615-4ce8-bf69-465b051bba76",
+      "response_data": null
+    },
+    {
+      "test_name": "Auth - User Login",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Login successful",
+      "response_data": null
+    },
+    {
+      "test_name": "Auth - Get Current User",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "User: Test User (test_user_000808@test.com)",
+      "response_data": null
+    },
+    {
+      "test_name": "Dashboard - Get Stats",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Plan: trial, Leads: 0/10",
+      "response_data": null
+    },
+    {
+      "test_name": "Search - Create Search",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Search ID: 968b9d42-b091-4d6b-a2cd-f7b0b8d09392",
+      "response_data": null
+    },
+    {
+      "test_name": "Search - Get Searches",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Found 1 searches",
+      "response_data": null
+    },
+    {
+      "test_name": "Search - Get Search by ID",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Status: running, Progress: 62%",
+      "response_data": null
+    },
+    {
+      "test_name": "Leads - Get Leads",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Found 8 leads",
+      "response_data": null
+    },
+    {
+      "test_name": "Leads - Update Lead",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Lead status updated to 'contacted'",
+      "response_data": null
+    },
+    {
+      "test_name": "Leads - Export CSV",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "CSV export successful",
+      "response_data": null
+    },
+    {
+      "test_name": "Scraping - Create Account",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Account ID: 5823477a-528e-45a4-8441-7d170d8d9752",
+      "response_data": null
+    },
+    {
+      "test_name": "Scraping - Get Accounts",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Found 1 accounts",
+      "response_data": null
+    },
+    {
+      "test_name": "Scraping - Delete Account",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Account deleted successfully",
+      "response_data": null
+    },
+    {
+      "test_name": "Proxy - Create Proxy",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Proxy ID: 2b378820-99bd-4262-ae41-cc1728023aeb",
+      "response_data": null
+    },
+    {
+      "test_name": "Proxy - Get Proxies",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Found 1 proxies",
+      "response_data": null
+    },
+    {
+      "test_name": "Proxy - Delete Proxy",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Proxy deleted successfully",
+      "response_data": null
+    },
+    {
+      "test_name": "Plans - Get Plans",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Found 4 plans",
+      "response_data": null
+    },
+    {
+      "test_name": "Payment - Create Checkout",
+      "status": "\u2705 PASS",
+      "success": true,
+      "details": "Checkout session created",
+      "response_data": null
+    }
+  ]
+}
