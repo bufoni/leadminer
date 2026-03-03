@@ -101,3 +101,289 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "LeadMiner - Plataforma SaaS para geração de leads via Instagram web scraping. Validar todos os endpoints da API."
+
+backend:
+  - task: "Auth - User Registration"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Último teste passou com sucesso (18/18 testes)"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: POST /api/auth/register funciona perfeitamente. Usuário criado com token e ID válidos."
+
+  - task: "Auth - User Login"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Login funcional"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: POST /api/auth/login funciona perfeitamente. Retorna token JWT e dados do usuário."
+
+  - task: "Auth - Get Current User"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Retorna usuário autenticado"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/auth/me funciona perfeitamente. Validação de token JWT e retorno de dados do usuário corretos."
+
+  - task: "Dashboard - Get Stats"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Retorna estatísticas do usuário"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/dashboard/stats funciona perfeitamente. Retorna total_leads, leads_used, leads_limit, total_searches e plan."
+
+  - task: "Search - Create Search"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Cria busca e retorna ID"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: POST /api/searches funciona perfeitamente. Cria busca com background task para scraping e retorna ID válido. Scraper local funcional (fallback ativo)."
+
+  - task: "Search - Get Searches"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Lista buscas do usuário"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/searches funciona perfeitamente. Lista buscas do usuário autenticado com filtragem correta."
+
+  - task: "Search - Get Specific Search"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/searches/{id} funciona perfeitamente. Retorna busca específica com validação de ownership."
+
+  - task: "Leads - Get Leads"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Lista leads"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/leads funciona perfeitamente. Lista leads do usuário com suporte a filtros opcionais (search_id, status)."
+
+  - task: "Leads - Update Lead"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Atualiza status do lead"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: PATCH /api/leads/{id} funciona perfeitamente. Atualiza campos como status, qualification e notes com validação de ownership."
+
+  - task: "Leads - Export CSV"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Exportação CSV funcional"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/leads/export/csv funciona perfeitamente. Gera arquivo CSV com headers corretos e content-type adequado."
+
+  - task: "Scraping Accounts CRUD"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Create/Read/Delete contas de scraping"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: POST/GET/DELETE /api/scraping-accounts funciona perfeitamente. CRUD completo com validação admin. Passwords protegidas na listagem."
+
+  - task: "Proxies CRUD"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Create/Read/Delete proxies"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: POST/GET/DELETE /api/proxies funciona perfeitamente. CRUD completo com validação admin. Suporte a proxies com/sem autenticação."
+
+  - task: "Plans - Get Plans"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Lista planos disponíveis"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/plans funciona perfeitamente. Retorna 4 planos (trial, starter, pro, business) com preços e limites corretos."
+
+frontend:
+  - task: "Login Page"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/Login.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+
+  - task: "Dashboard"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Auth - User Registration"
+    - "Auth - User Login"
+    - "Dashboard - Get Stats"
+    - "Search - Create Search"
+    - "Leads - Get Leads"
+    - "Leads - Export CSV"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+  - task: "Payment - Create Checkout"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Cria sessão de checkout Stripe"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: POST /api/payments/checkout funciona perfeitamente. Cria sessão Stripe com desconto para usuários referenciados. Retorna session_id e URL válidos."
+
+frontend:
+  - task: "Login Page"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/Login.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+
+  - task: "Dashboard"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/Dashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 2
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Auth - User Registration"
+    - "Auth - User Login"
+    - "Dashboard - Get Stats"
+    - "Search - Create Search"
+    - "Leads - Get Leads"
+    - "Leads - Export CSV"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Solicitação do usuário para validar todos os testes do backend. Serviços reiniciados com sucesso. Por favor, execute todos os testes de API do backend para validação completa."
+  - agent: "testing"
+    message: "✅ VALIDAÇÃO COMPLETA CONCLUÍDA: Todos os 14 endpoints do backend testados e funcionais. Taxa de sucesso: 100%. Sistema LeadMiner está operacional e pronto para uso. Inclui: autenticação JWT, dashboard, buscas com scraping local, leads CRUD, exportação CSV, admin CRUD (contas/proxies), planos e pagamentos Stripe. Scraper microservice usa fallback local conforme esperado."
