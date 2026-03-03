@@ -20,6 +20,18 @@ import secrets
 from openai import AsyncOpenAI
 import httpx
 
+# SendGrid for email notifications
+try:
+    from sendgrid import SendGridAPIClient
+    from sendgrid.helpers.mail import Mail
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
+
+# SendGrid config
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@leadminer.com.br')
+
 # Scraper service URL
 SCRAPER_SERVICE_URL = os.environ.get('SCRAPER_SERVICE_URL', 'http://localhost:8002')
 
@@ -218,6 +230,26 @@ class AnalyticsOverview(BaseModel):
     leads_this_month: int
     conversion_rate: float
     avg_followers: int
+
+# Notification Model
+class Notification(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    type: str  # "search_complete", "lead_hot", "plan_upgrade", etc.
+    title: str
+    message: str
+    read: bool = False
+    data: Optional[Dict[str, Any]] = None  # Additional data like search_id, lead_id, etc.
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class NotificationCreate(BaseModel):
+    type: str
+    title: str
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
+class AnalyticsOverviewFull(BaseModel):
     cost_per_lead: float
     roi_estimate: float
 
@@ -297,6 +329,97 @@ async def get_admin_user(current_user: User = Depends(get_current_user)) -> User
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+# ===================== NOTIFICATION HELPERS =====================
+
+async def send_email_notification(to_email: str, subject: str, html_content: str):
+    """Send email notification via SendGrid"""
+    if not SENDGRID_API_KEY or not SENDGRID_AVAILABLE:
+        logging.warning("SendGrid not configured - email notification skipped")
+        return False
+    
+    try:
+        message = Mail(
+            from_email=SENDER_EMAIL,
+            to_emails=to_email,
+            subject=subject,
+            html_content=html_content
+        )
+        
+        sg = SendGridAPIClient(SENDGRID_API_KEY)
+        response = sg.send(message)
+        
+        if response.status_code == 202:
+            logging.info(f"Email sent successfully to {to_email}")
+            return True
+        else:
+            logging.error(f"Email send failed: {response.status_code}")
+            return False
+    except Exception as e:
+        logging.error(f"SendGrid error: {str(e)}")
+        return False
+
+async def create_notification(user_id: str, notification_type: str, title: str, message: str, data: Optional[Dict] = None, send_email: bool = True):
+    """Create a notification in the database and optionally send email"""
+    notification = Notification(
+        user_id=user_id,
+        type=notification_type,
+        title=title,
+        message=message,
+        data=data or {}
+    )
+    
+    notification_dict = notification.model_dump()
+    notification_dict["created_at"] = notification_dict["created_at"].isoformat()
+    await db.notifications.insert_one(notification_dict)
+    
+    # Send email notification if enabled
+    if send_email:
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if user and user.get("email"):
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">LeadMiner</h1>
+                </div>
+                <div style="padding: 30px; background: #f9f9f9;">
+                    <h2 style="color: #333;">{title}</h2>
+                    <p style="color: #666; font-size: 16px; line-height: 1.6;">{message}</p>
+                    <div style="margin-top: 30px; text-align: center;">
+                        <a href="https://leadminer.com.br/dashboard" 
+                           style="background: #667eea; color: white; padding: 12px 30px; 
+                                  text-decoration: none; border-radius: 5px; display: inline-block;">
+                            Acessar Dashboard
+                        </a>
+                    </div>
+                </div>
+                <div style="padding: 20px; text-align: center; color: #999; font-size: 12px;">
+                    <p>Este é um e-mail automático do LeadMiner.</p>
+                    <p>© 2026 LeadMiner. Todos os direitos reservados.</p>
+                </div>
+            </body>
+            </html>
+            """
+            await send_email_notification(user["email"], f"LeadMiner: {title}", html_content)
+    
+    return notification
+
+async def notify_search_complete(user_id: str, search_id: str, leads_found: int, keywords: List[str], hashtags: List[str]):
+    """Notify user when search is complete"""
+    search_terms = ", ".join(keywords + [f"#{h}" for h in hashtags])
+    
+    title = "Busca Concluída!"
+    message = f"Sua busca por '{search_terms}' foi finalizada. Encontramos {leads_found} leads para você!"
+    
+    await create_notification(
+        user_id=user_id,
+        notification_type="search_complete",
+        title=title,
+        message=message,
+        data={"search_id": search_id, "leads_found": leads_found},
+        send_email=True
+    )
 
 # ===================== AUTH ROUTES =====================
 
@@ -1045,6 +1168,15 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         
         logging.info(f"Search {search_id} completed with {len(all_leads)} leads")
         
+        # Send notification to user
+        await notify_search_complete(
+            user_id=user_id,
+            search_id=search_id,
+            leads_found=len(all_leads),
+            keywords=keywords,
+            hashtags=hashtags
+        )
+        
     except Exception as e:
         logging.error(f"Scraping failed: {str(e)}")
         await db.searches.update_one(
@@ -1533,6 +1665,60 @@ async def get_plans():
     return PLANS
 
 # ===================== NOTIFICATIONS ROUTES =====================
+
+@api_router.get("/notifications")
+async def get_all_notifications(current_user: User = Depends(get_current_user), unread_only: bool = False):
+    """Get all notifications for the current user"""
+    try:
+        query = {"user_id": current_user.id}
+        if unread_only:
+            query["read"] = False
+        
+        notifications = await db.notifications.find(
+            query, 
+            {"_id": 0}
+        ).sort("created_at", -1).to_list(100)
+        
+        # Convert dates
+        for notif in notifications:
+            if isinstance(notif.get('created_at'), str):
+                notif['created_at'] = datetime.fromisoformat(notif['created_at'])
+        
+        unread_count = await db.notifications.count_documents({
+            "user_id": current_user.id,
+            "read": False
+        })
+        
+        return {
+            "notifications": notifications,
+            "total": len(notifications),
+            "unread_count": unread_count
+        }
+    except Exception as e:
+        logging.error(f"Error fetching notifications: {str(e)}")
+        return {"notifications": [], "total": 0, "unread_count": 0}
+
+@api_router.patch("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, current_user: User = Depends(get_current_user)):
+    """Mark a notification as read"""
+    result = await db.notifications.update_one(
+        {"id": notification_id, "user_id": current_user.id},
+        {"$set": {"read": True}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    
+    return {"success": True}
+
+@api_router.patch("/notifications/read-all")
+async def mark_all_notifications_read(current_user: User = Depends(get_current_user)):
+    """Mark all notifications as read"""
+    await db.notifications.update_many(
+        {"user_id": current_user.id, "read": False},
+        {"$set": {"read": True}}
+    )
+    return {"success": True}
 
 @api_router.get("/notifications/alerts")
 async def get_notifications(current_user: User = Depends(get_current_user)):

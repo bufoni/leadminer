@@ -297,6 +297,54 @@ backend:
         agent: "testing"
         comment: "✅ VALIDADO: GET /api/plans funciona perfeitamente. Retorna 4 planos (trial, starter, pro, business) com preços e limites corretos."
 
+  - task: "Notifications - Get Notifications"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/notifications funciona perfeitamente. Retorna estrutura correta com notifications[], total e unread_count. Testado com usuário test_notif@test.com."
+
+  - task: "Notifications - Mark Notification Read"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: PATCH /api/notifications/{notification_id}/read funciona perfeitamente. Marca notificação individual como lida e retorna {success: true}."
+
+  - task: "Notifications - Mark All Read"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: PATCH /api/notifications/read-all funciona perfeitamente. Marca todas notificações como lidas e retorna {success: true}."
+
+  - task: "Notifications - Auto Creation"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: Sistema de notificações automáticas funciona. Notificações são criadas automaticamente quando buscas são finalizadas. Testado criando busca e verificando notificação gerada."
+
 frontend:
   - task: "Login Page"
     implemented: true
@@ -503,12 +551,12 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: true
 
 test_plan:
   current_focus:
-    - "Frontend Testing Complete"
+    - "Notifications Testing Complete"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -530,3 +578,7 @@ agent_communication:
     message: "Solicitação do usuário para testar o frontend do LeadMiner. Executando testes completos de UI."
   - agent: "testing"
     message: "✅ VALIDAÇÃO COMPLETA DO FRONTEND CONCLUÍDA: Todos os 7 fluxos testados com sucesso (100%). Registro de usuário, login, dashboard, criação de busca, visualização de leads, analytics e configurações funcionam perfeitamente. Usuário de teste criado: maria.silva.1772572864@leadminer.com.br. Busca criada com keywords 'marketing digital' e hashtag 'empreendedorismo' está processando (30%). Nenhum erro crítico encontrado. Requests falhados são apenas CDN RUM da Cloudflare (não crítico). Sistema LeadMiner frontend está 100% funcional e pronto para uso."
+  - agent: "main"
+    message: "Usuário solicitou teste específico dos endpoints de notificações: GET /api/notifications, PATCH /api/notifications/{id}/read e PATCH /api/notifications/read-all com credenciais test_notif@test.com."
+  - agent: "testing"
+    message: "✅ VALIDAÇÃO DOS ENDPOINTS DE NOTIFICAÇÕES CONCLUÍDA: Todos os 4 endpoints de notificação testados com sucesso (100%). GET /api/notifications retorna estrutura correta, PATCH individual e PATCH read-all funcionam perfeitamente. Autenticação JWT obrigatória. Sistema automático de criação de notificações funcionando - notificações são geradas quando buscas são finalizadas. Testado com usuário test_notif@test.com criando buscas reais. Nenhum erro crítico encontrado."

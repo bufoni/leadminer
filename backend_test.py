@@ -427,6 +427,92 @@ class LeadMinerTester:
             self.log_result("Payment - Create Checkout", False, f"Exception: {str(e)}")
             return False
 
+    async def test_get_notifications(self) -> Optional[str]:
+        """Test getting user notifications"""
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = await self.client.get(f"{self.base_url}/notifications", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = ["notifications", "total", "unread_count"]
+                if all(field in data for field in required_fields):
+                    notifications = data["notifications"]
+                    total = data["total"]
+                    unread_count = data["unread_count"]
+                    self.log_result("Notifications - Get Notifications", True, 
+                                  f"Retrieved {total} notifications ({unread_count} unread)")
+                    
+                    # Return first notification ID if available
+                    if notifications and len(notifications) > 0 and "id" in notifications[0]:
+                        return notifications[0]["id"]
+                    return "no_notifications"
+                else:
+                    missing = [f for f in required_fields if f not in data]
+                    self.log_result("Notifications - Get Notifications", False, f"Missing fields: {missing}")
+                    return None
+            else:
+                self.log_result("Notifications - Get Notifications", False, 
+                              f"Status: {response.status_code}, Body: {response.text}")
+                return None
+                
+        except Exception as e:
+            self.log_result("Notifications - Get Notifications", False, f"Exception: {str(e)}")
+            return None
+
+    async def test_mark_notification_read(self, notification_id: str) -> bool:
+        """Test marking a notification as read"""
+        try:
+            if notification_id == "no_notifications":
+                self.log_result("Notifications - Mark Notification Read", True, "Skipped - no notifications available")
+                return True
+                
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = await self.client.patch(f"{self.base_url}/notifications/{notification_id}/read", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success") is True:
+                    self.log_result("Notifications - Mark Notification Read", True, 
+                                  f"Notification {notification_id} marked as read")
+                    return True
+                else:
+                    self.log_result("Notifications - Mark Notification Read", False, 
+                                  "Success field not true in response")
+                    return False
+            else:
+                self.log_result("Notifications - Mark Notification Read", False, 
+                              f"Status: {response.status_code}, Body: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Notifications - Mark Notification Read", False, f"Exception: {str(e)}")
+            return False
+
+    async def test_mark_all_notifications_read(self) -> bool:
+        """Test marking all notifications as read"""
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = await self.client.patch(f"{self.base_url}/notifications/read-all", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success") is True:
+                    self.log_result("Notifications - Mark All Read", True, "All notifications marked as read")
+                    return True
+                else:
+                    self.log_result("Notifications - Mark All Read", False, 
+                                  "Success field not true in response")
+                    return False
+            else:
+                self.log_result("Notifications - Mark All Read", False, 
+                              f"Status: {response.status_code}, Body: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Notifications - Mark All Read", False, f"Exception: {str(e)}")
+            return False
+
     async def wait_for_search_completion(self, search_id: str, max_wait: int = 30) -> bool:
         """Wait for search to complete (for testing purposes)"""
         try:
@@ -493,6 +579,12 @@ class LeadMinerTester:
             print("\n💰 PLANS & PAYMENT TESTS")
             await self.test_get_plans()
             await self.test_payment_checkout()
+            
+            print("\n🔔 NOTIFICATION TESTS")
+            notification_id = await self.test_get_notifications()
+            if notification_id:
+                await self.test_mark_notification_read(notification_id)
+            await self.test_mark_all_notifications_read()
             
             # Summary
             print("\n" + "=" * 60)
