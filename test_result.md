@@ -420,15 +420,18 @@ frontend:
 
   - task: "Notification Dropdown"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/components/NotificationDropdown.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Componente de notificações adicionado ao header do dashboard"
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: Sistema de notificações no frontend funciona perfeitamente. Bell icon visível no header (top-right), dropdown abre corretamente com título 'Notificações', exibe lista de notificações com título/mensagem/timestamp, badge de unread funciona, botão 'Marcar todas como lidas' aparece quando há notificações não lidas, click em notificação marca como lida e atualiza badge. Testado criando nova busca que gerou notificação instantaneamente (1s). Todas as interações funcionando corretamente."
 
 metadata:
   created_by: "main_agent"
@@ -568,7 +571,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Notifications Testing Complete"
+    - "Notification Dropdown Testing Complete"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -594,3 +597,7 @@ agent_communication:
     message: "Usuário solicitou teste específico dos endpoints de notificações: GET /api/notifications, PATCH /api/notifications/{id}/read e PATCH /api/notifications/read-all com credenciais test_notif@test.com."
   - agent: "testing"
     message: "✅ VALIDAÇÃO DOS ENDPOINTS DE NOTIFICAÇÕES CONCLUÍDA: Todos os 4 endpoints de notificação testados com sucesso (100%). GET /api/notifications retorna estrutura correta, PATCH individual e PATCH read-all funcionam perfeitamente. Autenticação JWT obrigatória. Sistema automático de criação de notificações funcionando - notificações são geradas quando buscas são finalizadas. Testado com usuário test_notif@test.com criando buscas reais. Nenhum erro crítico encontrado."
+  - agent: "main"
+    message: "Usuário solicitou teste do sistema de notificações no frontend do LeadMiner - verificar bell icon, dropdown, criação de busca para gerar notificação e interações (marcar como lida)."
+  - agent: "testing"
+    message: "✅ VALIDAÇÃO DO FRONTEND DE NOTIFICAÇÕES CONCLUÍDA: Sistema de notificações no frontend 100% funcional. Bell icon visível no header (top-right corner), dropdown abre corretamente mostrando título 'Notificações', exibe lista de notificações com título/mensagem/timestamp/link 'Ver detalhes'. Badge de unread funciona perfeitamente (mostra contagem com animação pulse). Criação de busca gera notificação instantaneamente (1s após conclusão). Interações testadas: click em notificação marca como lida e atualiza badge, botão 'Marcar todas como lidas' funciona corretamente. NOTA: Existem 2 sistemas de notificação no app: 1) NotificationDropdown (header/top-right) para notificações gerais do sistema (testado e funcional), 2) Sidebar bell para 'Alertas de Follow-up' de leads. Ambos funcionam corretamente."
