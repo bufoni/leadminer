@@ -81,6 +81,13 @@ class HumanLikeScraper:
         self.current_account_index = (self.current_account_index + 1) % len(available)
         return available[self.current_account_index]
     
+    def get_next_proxy(self) -> Optional[Dict]:
+        """Get next available proxy"""
+        available = [p for p in self.proxies if p.get('status') == 'active']
+        if not available:
+            return None
+        return available[0]  # Return first active proxy
+    
     def get_session_file(self, username: str) -> str:
         """Get session file path for an account"""
         return os.path.join(SESSION_DIR, f"{username}_session.json")
@@ -673,8 +680,11 @@ async def scrape_instagram(request: ScrapeRequest):
     errors = []
     
     try:
-        # Setup browser
-        await scraper.setup_browser()
+        # Setup browser with proxy if available
+        proxy = scraper.get_next_proxy() if proxies else None
+        if proxy:
+            logger.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
+        await scraper.setup_browser(proxy=proxy)
         
         # Login if account available
         account = scraper.get_next_account()
