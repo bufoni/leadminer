@@ -300,19 +300,75 @@ backend:
 frontend:
   - task: "Login Page"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/Login.jsx"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Login e registro funcionando corretamente"
 
   - task: "Dashboard"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/pages/Dashboard.jsx"
     stuck_count: 0
     priority: "high"
     needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Estatísticas carregando, menu lateral e ações rápidas funcionando"
+
+  - task: "Searches Page"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Searches.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Criação e listagem de buscas funcionando"
+
+  - task: "Leads Page"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Leads.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Listagem de leads com filtros funcionando"
+
+  - task: "Analytics Page"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Analytics.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "KPIs e métricas carregando corretamente"
+
+  - task: "Settings Page"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/Settings.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Todas as abas funcionando (Plano, Referral, Perfil, Histórico)"
 
 metadata:
   created_by: "main_agent"
