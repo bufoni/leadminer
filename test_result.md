@@ -522,6 +522,8 @@ agent_communication:
     message: "Todos os testes do backend foram validados com sucesso. Sistema pronto para uso."
   - agent: "main"
     message: "Corrigido fallback_local_scraper para usar Playwright com contas reais do Instagram ao invés de dados fictícios. Conta um.cafe.estoico configurada com senha criptografada (bcrypt). Agora executando testes de frontend."
+  - agent: "main"
+    message: "Scraper Service v2.0 implementado com comportamento humano (delays aleatórios, movimentos de mouse, scroll gradual). Testado e funcionando - encontrando leads reais do Instagram via hashtags e reels."
   - agent: "testing"
     message: "✅ VALIDAÇÃO COMPLETA CONCLUÍDA: Todos os 14 endpoints do backend testados e funcionais. Taxa de sucesso: 100%. Sistema LeadMiner está operacional e pronto para uso. Inclui: autenticação JWT, dashboard, buscas com scraping local, leads CRUD, exportação CSV, admin CRUD (contas/proxies), planos e pagamentos Stripe. Scraper microservice usa fallback local conforme esperado."
   - agent: "main"
