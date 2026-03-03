@@ -1054,63 +1054,192 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
 
 
 async def fallback_local_scraper(keywords: List[str], hashtags: List[str], max_profiles: int) -> List[Dict]:
-    """Fallback local scraper when microservice is unavailable"""
+    """Fallback local scraper when microservice is unavailable - Uses real Instagram scraping with Playwright"""
     import re
     
     def extract_contact_info(bio: str) -> Dict[str, Optional[str]]:
         email = None
         phone = None
         
+        if not bio:
+            return {'email': None, 'phone': None}
+        
         email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
         email_match = re.search(email_pattern, bio)
         if email_match:
             email = email_match.group(0)
         
-        phone_pattern = r'\+?\d{1,3}?[-.\s]?\(?\d{2,3}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}'
-        phone_match = re.search(phone_pattern, bio)
-        if phone_match:
-            phone = phone_match.group(0)
+        phone_patterns = [
+            r'\+?\d{1,3}?[-.\s]?\(?\d{2,3}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}',
+            r'\(\d{2}\)\s*\d{4,5}-?\d{4}',
+            r'\d{2}\s*\d{4,5}\s*\d{4}',
+        ]
+        
+        for pattern in phone_patterns:
+            phone_match = re.search(pattern, bio)
+            if phone_match:
+                phone = phone_match.group(0)
+                break
         
         return {'email': email, 'phone': phone}
     
     results = []
     
-    # Generate sample leads based on keywords
-    for keyword in keywords:
-        for i in range(min(5, max_profiles - len(results))):
-            username = f"{keyword.lower().replace(' ', '_')}_{random.randint(1000, 9999)}"
-            bio = f"{keyword} | Profissional | email{i}@contato.com.br | +55 11 9{random.randint(1000,9999)}-{random.randint(1000,9999)}"
-            contact = extract_contact_info(bio)
-            
-            results.append({
-                'username': username,
-                'name': f"{keyword} Expert {i+1}",
-                'bio': bio,
-                'email': contact['email'],
-                'phone': contact['phone'],
-                'profile_url': f"https://instagram.com/{username}",
-                'followers': random.randint(200, 20000),
-                'source': 'keyword'
-            })
+    # Get scraping accounts from database
+    accounts = await db.scraping_accounts.find({"status": "active"}, {"_id": 0}).to_list(100)
     
-    # Generate sample leads based on hashtags
-    for hashtag in hashtags:
-        for i in range(min(5, max_profiles - len(results))):
-            username = f"{hashtag.lower()}_{random.randint(100, 999)}"
-            bio = f"Especialista em {hashtag} | Marketing Digital | contato{i}@exemplo.com"
-            contact = extract_contact_info(bio)
-            
-            results.append({
-                'username': username,
-                'name': f"Profissional {hashtag.capitalize()} {i+1}",
-                'bio': bio,
-                'email': contact['email'],
-                'phone': contact.get('phone'),
-                'profile_url': f"https://instagram.com/{username}",
-                'followers': random.randint(500, 50000),
-                'source': 'hashtag'
-            })
+    if not accounts:
+        logging.warning("No active scraping accounts found in database. Cannot perform real scraping.")
+        # Return empty list instead of fake data
+        return []
     
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=['--no-sandbox', '--disable-setuid-sandbox']
+            )
+            context = await browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            )
+            page = await context.new_page()
+            
+            # Login with the first active account
+            account = accounts[0]
+            logged_in = False
+            
+            try:
+                await page.goto('https://www.instagram.com/accounts/login/', wait_until='networkidle', timeout=30000)
+                await page.wait_for_timeout(random.randint(2000, 4000))
+                
+                if '/accounts/login' in page.url:
+                    await page.fill('input[name="username"]', account['username'])
+                    await page.fill('input[name="password"]', account['password'])
+                    await page.wait_for_timeout(random.randint(500, 1500))
+                    await page.click('button[type="submit"]')
+                    await page.wait_for_timeout(random.randint(5000, 8000))
+                    
+                    if '/accounts/login' not in page.url:
+                        logged_in = True
+                        logging.info(f"Successfully logged in as {account['username']}")
+                    else:
+                        logging.warning(f"Login may have failed for {account['username']}")
+                else:
+                    logged_in = True
+            except Exception as e:
+                logging.error(f"Login error: {str(e)}")
+            
+            usernames_found = set()
+            
+            # Scrape hashtags
+            for hashtag in hashtags:
+                if len(results) >= max_profiles:
+                    break
+                
+                try:
+                    url = f"https://www.instagram.com/explore/tags/{hashtag.replace('#', '')}/"
+                    logging.info(f"Navigating to {url}")
+                    await page.goto(url, wait_until='networkidle', timeout=30000)
+                    await page.wait_for_timeout(random.randint(3000, 5000))
+                    
+                    # Scroll to load more content
+                    for _ in range(3):
+                        await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                        await page.wait_for_timeout(random.randint(1500, 3000))
+                    
+                    # Extract post links
+                    post_links = await page.query_selector_all('a[href*="/p/"]')
+                    logging.info(f"Found {len(post_links)} posts for hashtag {hashtag}")
+                    
+                    # Visit posts to get usernames
+                    for link in post_links[:min(len(post_links), max_profiles * 2)]:
+                        if len(usernames_found) >= max_profiles:
+                            break
+                        
+                        try:
+                            href = await link.get_attribute('href')
+                            if href and '/p/' in href:
+                                await page.goto(f'https://www.instagram.com{href}', wait_until='networkidle', timeout=20000)
+                                await page.wait_for_timeout(random.randint(2000, 4000))
+                                
+                                username_elem = await page.query_selector('header a[href*="/"]')
+                                if username_elem:
+                                    username_href = await username_elem.get_attribute('href')
+                                    if username_href:
+                                        username = username_href.strip('/').split('/')[-1]
+                                        if username and username not in usernames_found:
+                                            usernames_found.add(username)
+                                            logging.info(f"Found username: {username}")
+                        except Exception as e:
+                            logging.error(f"Error extracting username: {str(e)}")
+                
+                except Exception as e:
+                    logging.error(f"Error scraping hashtag {hashtag}: {str(e)}")
+            
+            # Scrape profiles
+            for username in usernames_found:
+                if len(results) >= max_profiles:
+                    break
+                
+                try:
+                    await page.goto(f'https://www.instagram.com/{username}/', wait_until='networkidle', timeout=20000)
+                    await page.wait_for_timeout(random.randint(1500, 3000))
+                    
+                    if 'Page Not Found' in await page.title():
+                        continue
+                    
+                    result = {
+                        'username': username,
+                        'name': None,
+                        'bio': None,
+                        'email': None,
+                        'phone': None,
+                        'profile_url': f'https://instagram.com/{username}',
+                        'followers': None,
+                        'source': 'hashtag'
+                    }
+                    
+                    # Get name
+                    name_elem = await page.query_selector('header section span')
+                    if name_elem:
+                        result['name'] = await name_elem.inner_text()
+                    
+                    # Get bio
+                    bio_elem = await page.query_selector('header section div > span')
+                    if bio_elem:
+                        result['bio'] = await bio_elem.inner_text()
+                        contact = extract_contact_info(result['bio'])
+                        result['email'] = contact['email']
+                        result['phone'] = contact['phone']
+                    
+                    # Get followers count
+                    followers_elem = await page.query_selector('a[href*="followers"] span')
+                    if followers_elem:
+                        followers_text = await followers_elem.inner_text()
+                        followers_text = followers_text.replace(',', '').replace('.', '')
+                        if 'K' in followers_text or 'k' in followers_text:
+                            result['followers'] = int(float(followers_text.replace('K', '').replace('k', '')) * 1000)
+                        elif 'M' in followers_text or 'm' in followers_text:
+                            result['followers'] = int(float(followers_text.replace('M', '').replace('m', '')) * 1000000)
+                        else:
+                            try:
+                                result['followers'] = int(followers_text)
+                            except:
+                                pass
+                    
+                    results.append(result)
+                    await page.wait_for_timeout(random.randint(2000, 4000))
+                    
+                except Exception as e:
+                    logging.error(f"Error scraping profile {username}: {str(e)}")
+            
+            await browser.close()
+            
+    except Exception as e:
+        logging.error(f"Fallback scraper error: {str(e)}")
+    
+    logging.info(f"Fallback scraper returned {len(results)} real leads")
     return results[:max_profiles]
 
 @api_router.post("/searches", response_model=Search)
