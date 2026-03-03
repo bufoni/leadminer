@@ -16,10 +16,18 @@ import asyncio
 from playwright.async_api import async_playwright
 import random
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
-from emergentintegrations.auth.google.oauth import GoogleAuth, SessionRequest
 from scraper import InstagramScraper
 import secrets
 from openai import AsyncOpenAI
+
+# Try to import Google Auth, but don't fail if not available
+try:
+    from emergentintegrations.auth.google.oauth import GoogleAuth, SessionRequest
+    GOOGLE_AUTH_AVAILABLE = True
+except ImportError:
+    GOOGLE_AUTH_AVAILABLE = False
+    GoogleAuth = None
+    SessionRequest = None
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -320,6 +328,9 @@ async def get_me(current_user: User = Depends(get_current_user)):
 @api_router.post("/auth/google/session")
 async def create_google_auth_session(request: Request):
     """Create Google OAuth session"""
+    if not GOOGLE_AUTH_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Google Auth not available")
+    
     try:
         data = await request.json()
         redirect_url = data.get('redirect_url')
@@ -345,6 +356,9 @@ async def create_google_auth_session(request: Request):
 @api_router.post("/auth/google/callback")
 async def google_auth_callback(request: Request):
     """Handle Google OAuth callback and create/login user"""
+    if not GOOGLE_AUTH_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Google Auth not available")
+    
     try:
         data = await request.json()
         session_id = data.get('session_id')
