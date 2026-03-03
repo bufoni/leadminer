@@ -397,17 +397,20 @@ class HumanLikeScraper:
             try:
                 body_text = await self.page.inner_text('body')
                 
-                # Try to extract followers from text (e.g., "1,234 followers" or "1.234 seguidores")
+                # Try to extract followers - must be BEFORE "followers/seguidores" word
+                # Pattern: "1,234 followers" or "1.234 seguidores" (NOT "following/seguindo")
                 import re
+                
+                # More specific patterns to get followers (not following)
                 followers_patterns = [
-                    r'([\d,.]+[KMkm]?)\s*(?:followers|seguidores)',
-                    r'(?:followers|seguidores)\s*([\d,.]+[KMkm]?)',
+                    r'([\d,.]+[KMkm]?)\s*(?:followers|seguidores)(?!\s*\d)',  # "1234 followers" not followed by another number
+                    r'(?:^|\s)([\d,.]+[KMkm]?)\s+(?:followers|seguidores)',  # number + followers
                 ]
                 
                 for pattern in followers_patterns:
                     match = re.search(pattern, body_text, re.IGNORECASE)
                     if match:
-                        followers_str = match.group(1).replace(',', '').replace('.', '')
+                        followers_str = match.group(1).replace(',', '').replace('.', '').strip()
                         if 'K' in followers_str.upper():
                             result['followers'] = int(float(followers_str.upper().replace('K', '')) * 1000)
                         elif 'M' in followers_str.upper():
@@ -417,6 +420,7 @@ class HumanLikeScraper:
                                 result['followers'] = int(followers_str)
                             except:
                                 pass
+                        logger.info(f"Extracted followers from text: {result['followers']}")
                         break
             except Exception as e:
                 logger.debug(f"Error extracting from body text: {e}")
