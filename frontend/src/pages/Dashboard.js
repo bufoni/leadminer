@@ -140,7 +140,7 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Link to="/search">
             <Button data-testid="quick-action-new-search" className="w-full bg-violet-600 hover:bg-violet-700 text-white h-12">
               <Search className="mr-2 h-4 w-4" />
@@ -151,6 +151,12 @@ const Dashboard = () => {
             <Button data-testid="quick-action-view-leads" variant="outline" className="w-full border-white/10 text-white hover:bg-white/5 h-12">
               <Users className="mr-2 h-4 w-4" />
               Ver Leads
+            </Button>
+          </Link>
+          <Link to="/analytics">
+            <Button data-testid="quick-action-analytics" variant="outline" className="w-full border-white/10 text-white hover:bg-white/5 h-12">
+              <TrendingUp className="mr-2 h-4 w-4" />
+              Analytics
             </Button>
           </Link>
           <Link to="/settings">

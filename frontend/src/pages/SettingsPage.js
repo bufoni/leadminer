@@ -8,13 +8,14 @@ import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Check, Copy, Gift, Users as UsersIcon } from 'lucide-react';
 
 const SettingsPage = () => {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [proxies, setProxies] = useState([]);
   const [plans, setPlans] = useState({});
+  const [referralStats, setReferralStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Account form
@@ -35,14 +36,16 @@ const SettingsPage = () => {
 
   const fetchData = async () => {
     try {
-      const [accountsRes, proxiesRes, plansRes] = await Promise.all([
+      const [accountsRes, proxiesRes, plansRes, referralRes] = await Promise.all([
         api.get('/scraping-accounts'),
         api.get('/proxies'),
-        api.get('/plans')
+        api.get('/plans'),
+        api.get('/referrals/my-code')
       ]);
       setAccounts(accountsRes.data);
       setProxies(proxiesRes.data);
       setPlans(plansRes.data);
+      setReferralStats(referralRes.data);
     } catch (error) {
       toast.error('Erro ao carregar dados');
     } finally {
@@ -122,6 +125,25 @@ const SettingsPage = () => {
     }
   };
 
+  const copyReferralCode = () => {
+    if (referralStats) {
+      const referralLink = `${window.location.origin}/register?ref=${referralStats.code}`;
+      try {
+        navigator.clipboard.writeText(referralLink);
+        toast.success('Link de referral copiado!');
+      } catch (error) {
+        // Fallback for browsers that don't support clipboard
+        const textArea = document.createElement('textarea');
+        textArea.value = referralLink;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        toast.success('Link de referral copiado!');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#030712] flex items-center justify-center">
@@ -154,6 +176,7 @@ const SettingsPage = () => {
         <Tabs defaultValue="plan" className="space-y-6">
           <TabsList className="bg-gray-900/50 border border-white/5">
             <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>
+            <TabsTrigger data-testid="tab-referral" value="referral">Referral</TabsTrigger>
             <TabsTrigger data-testid="tab-accounts" value="accounts">Contas Instagram</TabsTrigger>
             <TabsTrigger data-testid="tab-proxies" value="proxies">Proxies</TabsTrigger>
           </TabsList>
@@ -206,6 +229,88 @@ const SettingsPage = () => {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          {/* Referral Tab */}
+          <TabsContent value="referral">
+            <Card className="bg-gray-900/50 border-white/5 p-6 mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                  <Gift className="h-6 w-6 text-violet-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold">Programa de Referral</h2>
+                  <p className="text-gray-400 text-sm">Ganhe 20% de desconto para cada amigo que se cadastrar</p>
+                </div>
+              </div>
+
+              <div className="bg-gray-950/50 rounded-lg p-6 mb-6">
+                <div className="mb-4">
+                  <Label className="text-gray-400 text-sm mb-2 block">Seu Link de Referral</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      data-testid="referral-link-input"
+                      value={`${window.location.origin}/register?ref=${referralStats?.code || ''}`}
+                      readOnly
+                      className="bg-gray-900 border-gray-800 text-white flex-1"
+                    />
+                    <Button
+                      data-testid="copy-referral-button"
+                      onClick={copyReferralCode}
+                      className="bg-violet-600 hover:bg-violet-700 text-white"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                  <div className="bg-gray-900/50 rounded-lg p-4 border border-white/5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <UsersIcon className="h-5 w-5 text-blue-400" />
+                      <span className="text-gray-400 text-sm">Total Indicados</span>
+                    </div>
+                    <div className="text-3xl font-bold">{referralStats?.total_referrals || 0}</div>
+                  </div>
+
+                  <div className="bg-gray-900/50 rounded-lg p-4 border border-white/5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Check className="h-5 w-5 text-emerald-400" />
+                      <span className="text-gray-400 text-sm">Conversões</span>
+                    </div>
+                    <div className="text-3xl font-bold">{referralStats?.successful_conversions || 0}</div>
+                  </div>
+
+                  <div className="bg-gray-900/50 rounded-lg p-4 border border-white/5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Gift className="h-5 w-5 text-violet-400" />
+                      <span className="text-gray-400 text-sm">Seu Desconto</span>
+                    </div>
+                    <div className="text-3xl font-bold">
+                      {referralStats?.discount_available ? '20%' : '0%'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-400 mb-2">Como funciona?</h3>
+                <ul className="space-y-2 text-sm text-gray-400">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-1">•</span>
+                    <span>Compartilhe seu link de referral com amigos</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-1">•</span>
+                    <span>Quando eles se cadastrarem usando seu link, ganham 20% de desconto na primeira compra</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-400 mt-1">•</span>
+                    <span>Você também ganha 20% de desconto nas suas próximas renovações!</span>
+                  </li>
+                </ul>
+              </div>
+            </Card>
           </TabsContent>
 
           {/* Accounts Tab */}

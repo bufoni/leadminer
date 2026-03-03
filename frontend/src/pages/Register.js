@@ -1,26 +1,50 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Gift } from 'lucide-react';
 
 const Register = () => {
+  const [searchParams] = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
+  const [referrerName, setReferrerName] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+      validateReferral(ref);
+    }
+  }, [searchParams]);
+
+  const validateReferral = async (code) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/referrals/validate/${code}`);
+      if (response.ok) {
+        const data = await response.json();
+        setReferrerName(data.referrer_name);
+        toast.success(`Você foi indicado por ${data.referrer_name}! Ganhe 20% de desconto na primeira compra.`);
+      }
+    } catch (error) {
+      console.error('Error validating referral:', error);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      await register(name, email, password);
+      await register(name, email, password, referralCode || null);
       toast.success('Conta criada com sucesso!');
       navigate('/dashboard');
     } catch (error) {
@@ -40,6 +64,16 @@ const Register = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {referrerName && (
+              <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-4 flex items-center gap-3">
+                <Gift className="h-5 w-5 text-violet-400 flex-shrink-0" />
+                <div className="text-sm">
+                  <div className="font-medium text-white">Indicação de {referrerName}</div>
+                  <div className="text-gray-400">Ganhe 20% de desconto na primeira compra!</div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="name">Nome</Label>
               <Input

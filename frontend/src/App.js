@@ -10,6 +10,7 @@ import SearchPage from './pages/SearchPage';
 import SearchesPage from './pages/SearchesPage';
 import LeadsPage from './pages/LeadsPage';
 import SettingsPage from './pages/SettingsPage';
+import Analytics from './pages/Analytics';
 import api from './lib/api';
 import { toast } from 'sonner';
 import './App.css';
@@ -157,6 +158,14 @@ function App() {
             element={
               <PrivateRoute>
                 <SettingsPage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <PrivateRoute>
+                <Analytics />
               </PrivateRoute>
             }
           />

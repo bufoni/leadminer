@@ -16,6 +16,8 @@ import asyncio
 from playwright.async_api import async_playwright
 import random
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+from scraper import InstagramScraper
+import secrets
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -53,6 +55,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: str
+    referral_code: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -66,6 +69,8 @@ class User(BaseModel):
     plan: str = "trial"
     leads_used: int = 0
     leads_limit: int = 10
+    referral_code: str = Field(default_factory=lambda: secrets.token_urlsafe(8))
+    referred_by: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TokenResponse(BaseModel):
@@ -84,7 +89,7 @@ class Search(BaseModel):
     keywords: List[str]
     hashtags: List[str]
     location: Optional[str] = None
-    status: str = "queued"  # queued, running, finished, failed
+    status: str = "queued"
     progress: int = 0
     leads_found: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -102,8 +107,9 @@ class Lead(BaseModel):
     phone: Optional[str] = None
     profile_url: str
     followers: Optional[int] = None
-    status: str = "new"  # new, contacted, discarded
+    status: str = "new"
     tags: List[str] = []
+    source: str = "hashtag"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class LeadUpdate(BaseModel):
@@ -115,7 +121,7 @@ class ScrapingAccount(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     username: str
     password: str
-    status: str = "active"  # active, cooldown, disabled
+    status: str = "active"
     last_used: Optional[datetime] = None
     cooldown_until: Optional[datetime] = None
     requests_count: int = 0
@@ -131,7 +137,7 @@ class Proxy(BaseModel):
     port: int
     username: Optional[str] = None
     password: Optional[str] = None
-    status: str = "active"  # active, disabled
+    status: str = "active"
 
 class ProxyCreate(BaseModel):
     host: str
@@ -149,6 +155,7 @@ class PaymentTransaction(BaseModel):
     plan: str
     status: str = "pending"
     payment_status: str = "unpaid"
+    discount_percent: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class DashboardStats(BaseModel):
@@ -157,6 +164,38 @@ class DashboardStats(BaseModel):
     leads_limit: int
     total_searches: int
     plan: str
+
+class Referral(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    code: str
+    total_referrals: int = 0
+    successful_conversions: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ReferralStats(BaseModel):
+    code: str
+    total_referrals: int
+    successful_conversions: int
+    discount_available: bool
+
+class AnalyticsOverview(BaseModel):
+    total_leads: int
+    leads_this_month: int
+    conversion_rate: float
+    avg_followers: int
+    cost_per_lead: float
+    roi_estimate: float
+
+class LeadsTimeline(BaseModel):
+    date: str
+    count: int
+
+class ConversionFunnel(BaseModel):
+    stage: str
+    count: int
+    percentage: float
 
 # ===================== AUTH HELPERS =====================
 
@@ -196,23 +235,33 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
-    # Check if user exists
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # Create user
+    referred_by = None
+    if user_data.referral_code:
+        referrer = await db.users.find_one({"referral_code": user_data.referral_code}, {"_id": 0})
+        if referrer:
+            referred_by = referrer['id']
+            await db.users.update_one(
+                {"id": referrer['id']},
+                {"$inc": {"total_referrals": 1}}
+            )
+    
     user = User(
         email=user_data.email,
         name=user_data.name,
         plan="trial",
         leads_used=0,
-        leads_limit=PLANS["trial"]["leads_limit"]
+        leads_limit=PLANS["trial"]["leads_limit"],
+        referred_by=referred_by
     )
     
     user_dict = user.model_dump()
     user_dict["password"] = hash_password(user_data.password)
     user_dict["created_at"] = user_dict["created_at"].isoformat()
+    user_dict["total_referrals"] = 0
     
     await db.users.insert_one(user_dict)
     
@@ -240,6 +289,33 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
+# ===================== REFERRAL ROUTES =====================
+
+@api_router.get("/referrals/my-code", response_model=ReferralStats)
+async def get_my_referral_code(current_user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"id": current_user.id}, {"_id": 0})
+    
+    total_referred = await db.users.count_documents({"referred_by": current_user.id})
+    
+    successful = await db.payment_transactions.count_documents({
+        "user_id": {"$in": [u["id"] async for u in db.users.find({"referred_by": current_user.id}, {"_id": 0})]},
+        "payment_status": "paid"
+    })
+    
+    return ReferralStats(
+        code=current_user.referral_code,
+        total_referrals=total_referred,
+        successful_conversions=successful,
+        discount_available=current_user.referred_by is not None
+    )
+
+@api_router.get("/referrals/validate/{code}")
+async def validate_referral_code(code: str):
+    user = await db.users.find_one({"referral_code": code}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid referral code")
+    return {"valid": True, "referrer_name": user['name']}
+
 # ===================== STRIPE ROUTES =====================
 
 @api_router.post("/payments/checkout", response_model=CheckoutSessionResponse)
@@ -251,10 +327,13 @@ async def create_checkout(plan: str, request: Request, current_user: User = Depe
     if plan_info["price"] == 0:
         raise HTTPException(status_code=400, detail="Cannot checkout for free plan")
     
-    # Get origin from request
-    origin = str(request.base_url).rstrip('/')
+    discount_percent = 0
+    if current_user.referred_by:
+        discount_percent = 20
     
-    # Create Stripe checkout
+    final_price = plan_info["price"] * (1 - discount_percent / 100)
+    
+    origin = str(request.base_url).rstrip('/')
     webhook_url = f"{origin}/api/webhook/stripe"
     stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
     
@@ -262,24 +341,24 @@ async def create_checkout(plan: str, request: Request, current_user: User = Depe
     cancel_url = f"{origin}"
     
     checkout_request = CheckoutSessionRequest(
-        amount=plan_info["price"],
+        amount=final_price,
         currency="brl",
         success_url=success_url,
         cancel_url=cancel_url,
-        metadata={"user_id": current_user.id, "plan": plan}
+        metadata={"user_id": current_user.id, "plan": plan, "discount_percent": str(discount_percent)}
     )
     
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
-    # Create payment transaction
     transaction = PaymentTransaction(
         user_id=current_user.id,
         session_id=session.session_id,
-        amount=plan_info["price"],
+        amount=final_price,
         currency="brl",
         plan=plan,
         status="pending",
-        payment_status="unpaid"
+        payment_status="unpaid",
+        discount_percent=discount_percent
     )
     
     transaction_dict = transaction.model_dump()
@@ -295,10 +374,8 @@ async def get_payment_status(session_id: str, current_user: User = Depends(get_c
     
     checkout_status = await stripe_checkout.get_checkout_status(session_id)
     
-    # Update transaction in database
     transaction = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     if transaction and transaction["payment_status"] != "paid" and checkout_status.payment_status == "paid":
-        # Update user plan
         plan = transaction["plan"]
         plan_info = PLANS[plan]
         
@@ -318,6 +395,14 @@ async def get_payment_status(session_id: str, current_user: User = Depends(get_c
                 "payment_status": checkout_status.payment_status
             }}
         )
+        
+        if transaction.get("discount_percent", 0) == 20:
+            referrer_id = current_user.referred_by
+            if referrer_id:
+                await db.users.update_one(
+                    {"id": referrer_id},
+                    {"$inc": {"successful_conversions": 1}}
+                )
     
     return checkout_status
 
@@ -334,6 +419,85 @@ async def stripe_webhook(request: Request):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# ===================== ANALYTICS ROUTES =====================
+
+@api_router.get("/analytics/overview", response_model=AnalyticsOverview)
+async def get_analytics_overview(current_user: User = Depends(get_current_user)):
+    total_leads = await db.leads.count_documents({"user_id": current_user.id})
+    
+    start_of_month = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    leads_this_month = await db.leads.count_documents({
+        "user_id": current_user.id,
+        "created_at": {"$gte": start_of_month.isoformat()}
+    })
+    
+    contacted = await db.leads.count_documents({"user_id": current_user.id, "status": "contacted"})
+    conversion_rate = (contacted / total_leads * 100) if total_leads > 0 else 0
+    
+    pipeline = [
+        {"$match": {"user_id": current_user.id, "followers": {"$ne": None}}},
+        {"$group": {"_id": None, "avg": {"$avg": "$followers"}}}
+    ]
+    avg_result = await db.leads.aggregate(pipeline).to_list(1)
+    avg_followers = int(avg_result[0]["avg"]) if avg_result else 0
+    
+    plan_price = PLANS[current_user.plan]["price"]
+    cost_per_lead = (plan_price / current_user.leads_limit) if current_user.leads_limit > 0 else 0
+    
+    roi_estimate = (conversion_rate * 100) - cost_per_lead if conversion_rate > 0 else 0
+    
+    return AnalyticsOverview(
+        total_leads=total_leads,
+        leads_this_month=leads_this_month,
+        conversion_rate=round(conversion_rate, 2),
+        avg_followers=avg_followers,
+        cost_per_lead=round(cost_per_lead, 2),
+        roi_estimate=round(roi_estimate, 2)
+    )
+
+@api_router.get("/analytics/leads-timeline", response_model=List[LeadsTimeline])
+async def get_leads_timeline(days: int = 30, current_user: User = Depends(get_current_user)):
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    pipeline = [
+        {"$match": {
+            "user_id": current_user.id,
+            "created_at": {"$gte": start_date.isoformat()}
+        }},
+        {"$group": {
+            "_id": {"$substr": ["$created_at", 0, 10]},
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    results = await db.leads.aggregate(pipeline).to_list(100)
+    return [LeadsTimeline(date=r["_id"], count=r["count"]) for r in results]
+
+@api_router.get("/analytics/conversion-funnel", response_model=List[ConversionFunnel])
+async def get_conversion_funnel(current_user: User = Depends(get_current_user)):
+    total = await db.leads.count_documents({"user_id": current_user.id})
+    new = await db.leads.count_documents({"user_id": current_user.id, "status": "new"})
+    contacted = await db.leads.count_documents({"user_id": current_user.id, "status": "contacted"})
+    
+    if total == 0:
+        return []
+    
+    return [
+        ConversionFunnel(stage="Total Leads", count=total, percentage=100.0),
+        ConversionFunnel(stage="Novos", count=new, percentage=round(new/total*100, 2)),
+        ConversionFunnel(stage="Contatados", count=contacted, percentage=round(contacted/total*100, 2))
+    ]
+
+@api_router.get("/analytics/source-breakdown")
+async def get_source_breakdown(current_user: User = Depends(get_current_user)):
+    pipeline = [
+        {"$match": {"user_id": current_user.id}},
+        {"$group": {"_id": "$source", "count": {"$sum": 1}}}
+    ]
+    results = await db.leads.aggregate(pipeline).to_list(10)
+    return [{"source": r["_id"], "count": r["count"]} for r in results]
 
 # ===================== DASHBOARD ROUTES =====================
 
@@ -353,68 +517,72 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
 # ===================== SEARCH ROUTES =====================
 
 async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[str], location: Optional[str], user_id: str):
-    """Background task to scrape Instagram"""
     try:
-        # Update search status to running
         await db.searches.update_one(
             {"id": search_id},
             {"$set": {"status": "running", "progress": 0}}
         )
         
-        # Get user to check limits
         user_data = await db.users.find_one({"id": user_id}, {"_id": 0})
         if not user_data:
             raise Exception("User not found")
         
         leads_remaining = user_data["leads_limit"] - user_data["leads_used"]
         
-        # Get accounts and proxies
         accounts = await db.scraping_accounts.find({"status": "active"}, {"_id": 0}).to_list(100)
         proxies = await db.proxies.find({"status": "active"}, {"_id": 0}).to_list(100)
         
-        # Simulate scraping (in production, use real Playwright scraping)
-        leads_to_create = min(random.randint(5, 15), leads_remaining)
+        scraper = InstagramScraper(accounts, proxies)
         
-        for i in range(leads_to_create):
+        all_leads = []
+        total_items = len(keywords) + len(hashtags)
+        current_item = 0
+        
+        for keyword in keywords:
+            results = await scraper.scrape_keyword(keyword, max_profiles=min(10, leads_remaining))
+            all_leads.extend(results)
+            current_item += 1
+            progress = int((current_item / total_items) * 100)
+            await db.searches.update_one({"id": search_id}, {"$set": {"progress": progress}})
+        
+        for hashtag in hashtags:
+            results = await scraper.scrape_hashtag(hashtag, max_profiles=min(10, leads_remaining))
+            all_leads.extend(results)
+            current_item += 1
+            progress = int((current_item / total_items) * 100)
+            await db.searches.update_one({"id": search_id}, {"$set": {"progress": progress}})
+        
+        all_leads = all_leads[:leads_remaining]
+        
+        for lead_data in all_leads:
             lead = Lead(
                 search_id=search_id,
                 user_id=user_id,
-                username=f"user_{random.randint(1000, 9999)}",
-                name=f"Sample User {i+1}",
-                bio=f"Sample bio for lead {i+1}",
-                email=f"sample{i+1}@example.com",
-                phone=f"+55 11 9{random.randint(1000, 9999)}-{random.randint(1000, 9999)}",
-                profile_url=f"https://instagram.com/user_{random.randint(1000, 9999)}",
-                followers=random.randint(100, 10000)
+                username=lead_data['username'],
+                name=lead_data.get('name'),
+                bio=lead_data.get('bio'),
+                email=lead_data.get('email'),
+                phone=lead_data.get('phone'),
+                profile_url=lead_data['profile_url'],
+                followers=lead_data.get('followers'),
+                source="keyword" if keywords else "hashtag"
             )
             
             lead_dict = lead.model_dump()
             lead_dict["created_at"] = lead_dict["created_at"].isoformat()
             await db.leads.insert_one(lead_dict)
-            
-            # Update progress
-            progress = int((i + 1) / leads_to_create * 100)
-            await db.searches.update_one(
-                {"id": search_id},
-                {"$set": {"progress": progress}}
-            )
-            
-            # Simulate delay
-            await asyncio.sleep(0.5)
         
-        # Update user leads count
         await db.users.update_one(
             {"id": user_id},
-            {"$inc": {"leads_used": leads_to_create}}
+            {"$inc": {"leads_used": len(all_leads)}}
         )
         
-        # Mark search as finished
         await db.searches.update_one(
             {"id": search_id},
             {"$set": {
                 "status": "finished",
                 "progress": 100,
-                "leads_found": leads_to_create,
+                "leads_found": len(all_leads),
                 "finished_at": datetime.now(timezone.utc).isoformat()
             }}
         )
@@ -432,11 +600,9 @@ async def create_search(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user)
 ):
-    # Check if user has reached limit
     if current_user.leads_used >= current_user.leads_limit:
         raise HTTPException(status_code=400, detail="Lead limit reached. Upgrade your plan.")
     
-    # Create search
     search = Search(
         user_id=current_user.id,
         keywords=search_data.keywords,
@@ -448,7 +614,6 @@ async def create_search(
     search_dict["created_at"] = search_dict["created_at"].isoformat()
     await db.searches.insert_one(search_dict)
     
-    # Start background scraping
     background_tasks.add_task(
         scrape_instagram,
         search.id,
@@ -585,7 +750,6 @@ async def get_scraping_accounts(current_user: User = Depends(get_current_user)):
         if account.get('cooldown_until') and isinstance(account['cooldown_until'], str):
             account['cooldown_until'] = datetime.fromisoformat(account['cooldown_until'])
     
-    # Set password to empty for security
     for account in accounts:
         account['password'] = '********'
     
@@ -641,7 +805,6 @@ async def delete_proxy(
 async def get_plans():
     return PLANS
 
-# Include router
 app.include_router(api_router)
 
 app.add_middleware(
