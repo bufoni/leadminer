@@ -19,6 +19,7 @@ from emergentintegrations.payments.stripe.checkout import StripeCheckout, Checko
 from emergentintegrations.auth.google.oauth import GoogleAuth, SessionRequest
 from scraper import InstagramScraper
 import secrets
+from openai import AsyncOpenAI
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -41,6 +42,10 @@ STRIPE_API_KEY = os.environ['STRIPE_API_KEY']
 # Google Auth
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', 'emergentagent_oauth')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', 'emergentagent_secret')
+
+# OpenAI (via Emergent LLM)
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', 'sk-emergent-4Fe627661955f5294F')
+OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://llm-proxy-api.emergentagent.com/v1')
 
 # Plans configuration
 PLANS = {
@@ -953,6 +958,113 @@ async def delete_proxy(
 @api_router.get("/plans")
 async def get_plans():
     return PLANS
+
+# ===================== NOTIFICATIONS ROUTES =====================
+
+@api_router.get("/notifications/alerts")
+async def get_notifications(current_user: User = Depends(get_current_user)):
+    """Get notification alerts for leads that need follow-up"""
+    try:
+        # Find "quente" leads without contact for more than 3 days
+        three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
+        
+        hot_leads = await db.leads.find({
+            "user_id": current_user.id,
+            "qualification": "quente",
+            "status": "new",
+            "created_at": {"$lt": three_days_ago.isoformat()}
+        }, {"_id": 0}).to_list(100)
+        
+        # Convert dates
+        for lead in hot_leads:
+            if isinstance(lead.get('created_at'), str):
+                lead['created_at'] = datetime.fromisoformat(lead['created_at'])
+        
+        alerts = []
+        for lead in hot_leads:
+            days_ago = (datetime.now(timezone.utc) - lead['created_at']).days
+            alerts.append({
+                "id": lead['id'],
+                "lead_id": lead['id'],
+                "lead_name": lead.get('name') or lead['username'],
+                "username": lead['username'],
+                "message": f"Lead quente sem contato há {days_ago} dias",
+                "days_ago": days_ago,
+                "type": "follow_up",
+                "created_at": lead['created_at'].isoformat()
+            })
+        
+        return {"alerts": alerts, "count": len(alerts)}
+    except Exception as e:
+        logging.error(f"Error fetching notifications: {str(e)}")
+        return {"alerts": [], "count": 0}
+
+# ===================== AI FOLLOW-UP ROUTES =====================
+
+@api_router.post("/leads/{lead_id}/suggest-message")
+async def suggest_follow_up_message(
+    lead_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Generate personalized follow-up message using AI"""
+    try:
+        # Get lead
+        lead = await db.leads.find_one({
+            "id": lead_id,
+            "user_id": current_user.id
+        }, {"_id": 0})
+        
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        
+        # Initialize OpenAI client
+        client = AsyncOpenAI(
+            api_key=OPENAI_API_KEY,
+            base_url=OPENAI_BASE_URL
+        )
+        
+        # Create prompt
+        prompt = f"""Você é um especialista em marketing digital e comunicação. 
+
+Crie uma mensagem de abordagem personalizada e profissional para enviar no Instagram Direct para o seguinte lead:
+
+Nome: {lead.get('name') or lead['username']}
+Username: @{lead['username']}
+Bio: {lead.get('bio', 'Não disponível')}
+Seguidores: {lead.get('followers', 'Desconhecido')}
+
+A mensagem deve:
+1. Ser amigável e não invasiva
+2. Demonstrar interesse genuíno no trabalho/perfil da pessoa
+3. Ser curta (máximo 3-4 linhas)
+4. Ter um call-to-action sutil
+5. Não parecer spam ou automática
+6. Usar linguagem casual do Instagram
+
+Retorne APENAS a mensagem, sem explicações adicionais."""
+
+        # Call OpenAI
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Você é um especialista em marketing e comunicação no Instagram."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=200
+        )
+        
+        suggested_message = response.choices[0].message.content.strip()
+        
+        return {
+            "lead_id": lead_id,
+            "suggested_message": suggested_message,
+            "generated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+    except Exception as e:
+        logging.error(f"Error generating message: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erro ao gerar mensagem: {str(e)}")
 
 app.include_router(api_router)
 

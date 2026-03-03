@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, TrendingUp, Search, List, Users, Settings, LogOut, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { LayoutDashboard, TrendingUp, Search, List, Users, Settings, LogOut, Plus, ChevronLeft, ChevronRight, Bell } from 'lucide-react';
+import api from '../lib/api';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
@@ -12,6 +14,9 @@ const Sidebar = () => {
     const saved = localStorage.getItem('sidebar-collapsed');
     return saved === 'true';
   });
+  const [notifications, setNotifications] = useState([]);
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -22,6 +27,28 @@ const Sidebar = () => {
     const newState = !collapsed;
     setCollapsed(newState);
     localStorage.setItem('sidebar-collapsed', newState.toString());
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await api.get('/notifications/alerts');
+      setNotifications(response.data.alerts || []);
+      setNotificationCount(response.data.count || 0);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const handleNotificationClick = (leadId) => {
+    setShowNotifications(false);
+    navigate(`/leads?highlight=${leadId}`);
   };
 
   const menuItems = [
@@ -98,6 +125,55 @@ const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {/* Notifications */}
+        <Dialog open={showNotifications} onOpenChange={setShowNotifications}>
+          <DialogTrigger asChild>
+            <button
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-gray-400 hover:text-white hover:bg-white/5 w-full ${
+                collapsed ? 'justify-center' : ''
+              }`}
+              title={collapsed ? 'Notificações' : ''}
+            >
+              <div className="relative">
+                <Bell className="h-5 w-5 flex-shrink-0" />
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </span>
+                )}
+              </div>
+              {!collapsed && <span className="text-sm font-medium">Notificações</span>}
+            </button>
+          </DialogTrigger>
+          <DialogContent className="bg-gray-900 border-white/5 text-white max-w-md">
+            <DialogHeader>
+              <DialogTitle>Alertas de Follow-up</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              {notifications.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <Bell className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Nenhum alerta no momento</p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      onClick={() => handleNotificationClick(notif.lead_id)}
+                      className="p-3 bg-gray-950/50 rounded-lg border border-white/5 hover:border-violet-500/30 cursor-pointer transition-all"
+                    >
+                      <div className="font-medium text-white mb-1">{notif.lead_name}</div>
+                      <div className="text-sm text-gray-400">@{notif.username}</div>
+                      <div className="text-sm text-yellow-400 mt-2">{notif.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {menuItems.map((item) => {
           const Icon = item.icon;
           return (

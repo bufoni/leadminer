@@ -10,7 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Download, Search, ExternalLink, Edit2, X } from 'lucide-react';
+import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2 } from 'lucide-react';
 
 const LeadsPage = () => {
   const [searchParams] = useSearchParams();
@@ -24,6 +24,9 @@ const LeadsPage = () => {
   const [qualificationFilter, setQualificationFilter] = useState('all');
   const [editingLead, setEditingLead] = useState(null);
   const [editNotes, setEditNotes] = useState('');
+  const [aiMessageLead, setAiMessageLead] = useState(null);
+  const [suggestedMessage, setSuggestedMessage] = useState('');
+  const [generatingMessage, setGeneratingMessage] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -113,6 +116,29 @@ const LeadsPage = () => {
       toast.success('Notas salvas');
     } catch (error) {
       toast.error('Erro ao salvar notas');
+    }
+  };
+
+  const generateAIMessage = async (lead) => {
+    setAiMessageLead(lead);
+    setGeneratingMessage(true);
+    setSuggestedMessage('');
+    
+    try {
+      const response = await api.post(`/leads/${lead.id}/suggest-message`);
+      setSuggestedMessage(response.data.suggested_message);
+    } catch (error) {
+      toast.error('Erro ao gerar mensagem');
+      setAiMessageLead(null);
+    } finally {
+      setGeneratingMessage(false);
+    }
+  };
+
+  const copyMessage = () => {
+    if (suggestedMessage) {
+      navigator.clipboard.writeText(suggestedMessage);
+      toast.success('Mensagem copiada!');
     }
   };
 
@@ -322,7 +348,18 @@ const LeadsPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <Dialog open={editingLead?.id === lead.id} onOpenChange={(open) => !open && setEditingLead(null)}>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => generateAIMessage(lead)}
+                        className="border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+                        data-testid={`ai-message-${lead.id}`}
+                      >
+                        <Sparkles className="h-4 w-4 mr-1" />
+                        Sugerir Mensagem
+                      </Button>
+                      <Dialog open={editingLead?.id === lead.id} onOpenChange={(open) => !open && setEditingLead(null)}>
                       <DialogTrigger asChild>
                         <Button
                           size="sm"
@@ -367,12 +404,56 @@ const LeadsPage = () => {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    </div>
                   </div>
                 </div>
               </Card>
             ))}
           </div>
         )}
+
+        {/* AI Message Dialog */}
+        <Dialog open={aiMessageLead !== null} onOpenChange={(open) => !open && setAiMessageLead(null)}>
+          <DialogContent className="bg-gray-900 border-white/5 text-white max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-violet-400" />
+                Mensagem Sugerida por IA
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              {generatingMessage ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-12 w-12 animate-spin text-violet-500 mb-4" />
+                  <p className="text-gray-400">Gerando mensagem personalizada...</p>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-gray-950/50 rounded-lg p-4 border border-white/5">
+                    <Label className="text-gray-400 text-sm mb-2 block">Para: @{aiMessageLead?.username}</Label>
+                    <p className="text-white whitespace-pre-wrap">{suggestedMessage}</p>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => setAiMessageLead(null)}
+                      className="border-white/10 text-white hover:bg-white/5"
+                    >
+                      Fechar
+                    </Button>
+                    <Button
+                      onClick={copyMessage}
+                      className="bg-violet-600 hover:bg-violet-700 text-white"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copiar Mensagem
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
