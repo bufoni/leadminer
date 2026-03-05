@@ -15,7 +15,7 @@ from passlib.context import CryptContext
 import asyncio
 from playwright.async_api import async_playwright
 import random
-from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+import stripe
 import secrets
 from openai import AsyncOpenAI
 import httpx
@@ -65,6 +65,8 @@ JWT_EXPIRATION_HOURS = 720
 
 # Stripe
 STRIPE_API_KEY = os.environ['STRIPE_API_KEY']
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+stripe.api_key = STRIPE_API_KEY
 
 # Google Auth
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', 'emergentagent_oauth')
@@ -189,6 +191,14 @@ class ProxyCreate(BaseModel):
     port: int
     username: Optional[str] = None
     password: Optional[str] = None
+
+class CheckoutSessionResponse(BaseModel):
+    session_id: str
+    url: str
+
+class CheckoutStatusResponse(BaseModel):
+    status: str
+    payment_status: str
 
 class PaymentTransaction(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -816,6 +826,29 @@ async def validate_referral_code(code: str):
 
 # ===================== STRIPE ROUTES =====================
 
+def _create_stripe_checkout_session(
+    amount_brl: float,
+    plan_name: str,
+    success_url: str,
+    cancel_url: str,
+    metadata: dict,
+):
+    return stripe.checkout.Session.create(
+        mode="payment",
+        payment_method_types=["card"],
+        line_items=[{
+            "price_data": {
+                "currency": "brl",
+                "unit_amount": int(round(amount_brl * 100)),
+                "product_data": {"name": f"Plano {plan_name}"},
+            },
+            "quantity": 1,
+        }],
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata,
+    )
+
 @api_router.post("/payments/checkout", response_model=CheckoutSessionResponse)
 async def create_checkout(plan: str, request: Request, current_user: User = Depends(get_current_user)):
     if plan not in PLANS:
@@ -832,25 +865,22 @@ async def create_checkout(plan: str, request: Request, current_user: User = Depe
     final_price = plan_info["price"] * (1 - discount_percent / 100)
     
     origin = str(request.base_url).rstrip('/')
-    webhook_url = f"{origin}/api/webhook/stripe"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    
     success_url = f"{origin}?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{origin}"
+    metadata = {"user_id": current_user.id, "plan": plan, "discount_percent": str(discount_percent)}
     
-    checkout_request = CheckoutSessionRequest(
-        amount=final_price,
-        currency="brl",
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata={"user_id": current_user.id, "plan": plan, "discount_percent": str(discount_percent)}
+    session = await asyncio.to_thread(
+        _create_stripe_checkout_session,
+        final_price,
+        plan_info["name"],
+        success_url,
+        cancel_url,
+        metadata,
     )
-    
-    session = await stripe_checkout.create_checkout_session(checkout_request)
     
     transaction = PaymentTransaction(
         user_id=current_user.id,
-        session_id=session.session_id,
+        session_id=session.id,
         amount=final_price,
         currency="brl",
         plan=plan,
@@ -863,14 +893,15 @@ async def create_checkout(plan: str, request: Request, current_user: User = Depe
     transaction_dict["created_at"] = transaction_dict["created_at"].isoformat()
     await db.payment_transactions.insert_one(transaction_dict)
     
-    return session
+    return CheckoutSessionResponse(session_id=session.id, url=session.url)
 
 @api_router.get("/payments/status/{session_id}", response_model=CheckoutStatusResponse)
 async def get_payment_status(session_id: str, current_user: User = Depends(get_current_user)):
-    webhook_url = "https://placeholder.com/webhook"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
-    
-    checkout_status = await stripe_checkout.get_checkout_status(session_id)
+    session = await asyncio.to_thread(stripe.checkout.Session.retrieve, session_id)
+    checkout_status = CheckoutStatusResponse(
+        status=session.status or "open",
+        payment_status=session.payment_status or "unpaid"
+    )
     
     transaction = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
     if transaction and transaction["payment_status"] != "paid" and checkout_status.payment_status == "paid":
@@ -907,16 +938,44 @@ async def get_payment_status(session_id: str, current_user: User = Depends(get_c
 @api_router.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
     body = await request.body()
-    signature = request.headers.get("Stripe-Signature")
+    signature = request.headers.get("Stripe-Signature", "")
     
-    webhook_url = "https://placeholder.com/webhook"
-    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=500, detail="STRIPE_WEBHOOK_SECRET not configured")
     
     try:
-        webhook_response = await stripe_checkout.handle_webhook(body, signature)
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        event = stripe.Webhook.construct_event(body, signature, STRIPE_WEBHOOK_SECRET)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.SignatureVerificationError as e:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    
+    if event.type == "checkout.session.completed":
+        session = event.data.object
+        metadata = session.metadata or {}
+        user_id = metadata.get("user_id")
+        plan = metadata.get("plan")
+        if user_id and plan and plan in PLANS:
+            plan_info = PLANS[plan]
+            await db.users.update_one(
+                {"id": user_id},
+                {"$set": {"plan": plan, "leads_limit": plan_info["leads_limit"], "leads_used": 0}}
+            )
+            await db.payment_transactions.update_one(
+                {"session_id": session.id},
+                {"$set": {"status": "complete", "payment_status": "paid"}}
+            )
+            discount_percent = int(metadata.get("discount_percent", 0))
+            if discount_percent == 20:
+                user = await db.users.find_one({"id": user_id}, {"referred_by": 1})
+                referrer_id = user.get("referred_by") if user else None
+                if referrer_id:
+                    await db.users.update_one(
+                        {"id": referrer_id},
+                        {"$inc": {"successful_conversions": 1}}
+                    )
+    
+    return {"status": "success"}
 
 @api_router.get("/payments/transactions")
 async def get_transactions(current_user: User = Depends(get_current_user)):
