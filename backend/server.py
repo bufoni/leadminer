@@ -1,8 +1,10 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from contextlib import asynccontextmanager
 import os
 import logging
 from pathlib import Path
@@ -17,6 +19,9 @@ from playwright.async_api import async_playwright
 import random
 import stripe
 import secrets
+from urllib.parse import urlencode
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 from openai import AsyncOpenAI
 import httpx
 
@@ -35,15 +40,6 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@leadminer.com.br')
 # Scraper service URL
 SCRAPER_SERVICE_URL = os.environ.get('SCRAPER_SERVICE_URL', 'http://localhost:8002')
 
-# Try to import Google Auth, but don't fail if not available
-try:
-    from emergentintegrations.auth.google.oauth import GoogleAuth, SessionRequest
-    GOOGLE_AUTH_AVAILABLE = True
-except ImportError:
-    GOOGLE_AUTH_AVAILABLE = False
-    GoogleAuth = None
-    SessionRequest = None
-
 # Facebook OAuth config
 FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID', '')
 FACEBOOK_APP_SECRET = os.environ.get('FACEBOOK_APP_SECRET', '')
@@ -55,6 +51,15 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic (se necessário) pode ir aqui
+    yield
+    # Shutdown: fecha o cliente Mongo
+    client.close()
+
 
 # Security
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -69,8 +74,9 @@ STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 stripe.api_key = STRIPE_API_KEY
 
 # Google Auth
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', 'emergentagent_oauth')
-GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', 'emergentagent_secret')
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_AUTH_ENABLED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
 
 # OpenAI (via Emergent LLM)
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', 'sk-emergent-4Fe627661955f5294F')
@@ -85,7 +91,7 @@ PLANS = {
 }
 
 # Create the main app
-app = FastAPI(title="LeadMiner API")
+app = FastAPI(title="LeadMiner API", lifespan=lifespan)
 api_router = APIRouter(prefix="/api")
 
 # ===================== MODELS =====================
@@ -830,8 +836,8 @@ async def facebook_auth_callback(request: Request):
 @api_router.post("/auth/google/session")
 async def create_google_auth_session(request: Request):
     """Create Google OAuth session"""
-    if not GOOGLE_AUTH_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Google Auth not available")
+    if not GOOGLE_AUTH_ENABLED:
+        raise HTTPException(status_code=503, detail="Google Auth not configured")
     
     try:
         data = await request.json()
@@ -840,47 +846,154 @@ async def create_google_auth_session(request: Request):
         if not redirect_url:
             raise HTTPException(status_code=400, detail="redirect_url is required")
         
-        google_auth = GoogleAuth(
-            client_id=GOOGLE_CLIENT_ID,
-            client_secret=GOOGLE_CLIENT_SECRET
-        )
+        # Create an internal session and use it as state for CSRF protection
+        session_id = secrets.token_urlsafe(32)
+        state = secrets.token_urlsafe(32)
         
-        session_request = SessionRequest(redirect_url=redirect_url)
-        session_response = await google_auth.create_session(session_request)
+        await db.google_auth_sessions.insert_one({
+            "id": session_id,
+            "state": state,
+            "redirect_url": redirect_url,
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc),
+        })
+        
+        origin = str(request.base_url).rstrip('/')
+        redirect_uri = f"{origin}/auth/google/redirect"
+        
+        params = {
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "consent",
+            "state": state,
+        }
+        
+        auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
         
         return {
-            "session_id": session_response.session_id,
-            "auth_url": session_response.auth_url
+            "session_id": session_id,
+            "auth_url": auth_url,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error creating Google auth session: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create Google auth session")
+
+@api_router.get("/auth/google/redirect")
+async def google_oauth_redirect(code: str, state: str, request: Request):
+    """OAuth2 redirect URI called by Google after user consent."""
+    if not GOOGLE_AUTH_ENABLED:
+        raise HTTPException(status_code=503, detail="Google Auth not configured")
+    
+    session_doc = await db.google_auth_sessions.find_one({"state": state})
+    if not session_doc:
+        # Nothing we can do besides redirect the user back to login
+        return RedirectResponse(url="/login")
+    
+    session_id = session_doc["id"]
+    redirect_url = session_doc.get("redirect_url") or "/auth/google/callback"
+    
+    origin = str(request.base_url).rstrip('/')
+    redirect_uri = f"{origin}/auth/google/redirect"
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=15.0,
+            )
+            token_resp.raise_for_status()
+            token_data = token_resp.json()
+        
+        id_token_jwt = token_data.get("id_token")
+        if not id_token_jwt:
+            raise HTTPException(status_code=400, detail="Missing id_token from Google response")
+        
+        id_info = id_token.verify_oauth2_token(
+            id_token_jwt,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID,
+        )
+        
+        email = id_info.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Google account has no email")
+        
+        name = id_info.get("name") or email.split("@")[0]
+        picture = id_info.get("picture")
+        
+        await db.google_auth_sessions.update_one(
+            {"id": session_id},
+            {
+                "$set": {
+                    "status": "ready",
+                    "google_email": email,
+                    "google_name": name,
+                    "google_picture": picture,
+                    "google_sub": id_info.get("sub"),
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+    except Exception as e:
+        logging.error(f"Google OAuth redirect error: {str(e)}")
+        await db.google_auth_sessions.update_one(
+            {"id": session_id},
+            {
+                "$set": {
+                    "status": "error",
+                    "error": str(e),
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+    
+    # Always redirect the browser back to the SPA callback route
+    return RedirectResponse(url=redirect_url)
 
 @api_router.post("/auth/google/callback")
 async def google_auth_callback(request: Request):
-    """Handle Google OAuth callback and create/login user"""
-    if not GOOGLE_AUTH_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Google Auth not available")
+    """Handle Google OAuth callback from SPA, create/login user and return JWT."""
+    if not GOOGLE_AUTH_ENABLED:
+        raise HTTPException(status_code=503, detail="Google Auth not configured")
     
     try:
         data = await request.json()
         session_id = data.get('session_id')
+        referral_code = data.get('referral_code')
         
         if not session_id:
             raise HTTPException(status_code=400, detail="session_id is required")
         
-        google_auth = GoogleAuth(
-            client_id=GOOGLE_CLIENT_ID,
-            client_secret=GOOGLE_CLIENT_SECRET
-        )
+        session_doc = await db.google_auth_sessions.find_one({"id": session_id})
+        if not session_doc:
+            raise HTTPException(status_code=400, detail="Invalid or expired session")
         
-        # Get user info from Google
-        user_info = await google_auth.get_user_info(session_id)
+        status_value = session_doc.get("status")
+        if status_value == "error":
+            raise HTTPException(status_code=400, detail="Google authentication failed")
+        if status_value != "ready":
+            raise HTTPException(status_code=400, detail="Google authentication not completed")
         
-        if not user_info or not user_info.email:
-            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+        email = session_doc.get("google_email")
+        name = session_doc.get("google_name")
+        picture = session_doc.get("google_picture")
+        
+        if not email:
+            raise HTTPException(status_code=400, detail="Missing Google user information")
         
         # Check if user exists
-        existing_user = await db.users.find_one({"email": user_info.email}, {"_id": 0})
+        existing_user = await db.users.find_one({"email": email}, {"_id": 0})
         
         if existing_user:
             # Login existing user
@@ -896,14 +1009,25 @@ async def google_auth_callback(request: Request):
             user_count = await db.users.count_documents({})
             role = "admin" if user_count == 0 else "user"
             
+            referred_by = None
+            if referral_code:
+                referrer = await db.users.find_one({"referral_code": referral_code}, {"_id": 0})
+                if referrer:
+                    referred_by = referrer['id']
+                    await db.users.update_one(
+                        {"id": referrer['id']},
+                        {"$inc": {"total_referrals": 1}}
+                    )
+            
             new_user = User(
-                email=user_info.email,
-                name=user_info.name or user_info.email.split('@')[0],
+                email=email,
+                name=name or email.split('@')[0],
                 plan="trial",
                 leads_used=0,
                 leads_limit=PLANS["trial"]["leads_limit"],
                 role=role,
-                avatar_url=user_info.picture
+                avatar_url=picture,
+                referred_by=referred_by,
             )
             
             user_dict = new_user.model_dump()
@@ -916,9 +1040,11 @@ async def google_auth_callback(request: Request):
             token = create_token(new_user.id)
             return {"token": token, "user": new_user.model_dump(), "is_new": True}
             
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Google auth callback error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to process Google authentication")
 
 # ===================== USER ROUTES =====================
 
@@ -2154,10 +2280,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
 
 # Health check endpoint (outside of /api prefix for Docker)
 @app.get("/api/health")
