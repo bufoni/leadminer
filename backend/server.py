@@ -2099,3 +2099,22 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+# Health check endpoint (outside of /api prefix for Docker)
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    try:
+        # Check MongoDB connection
+        await db.command("ping")
+        return {
+            "status": "healthy",
+            "service": "leadminer-backend",
+            "database": "connected"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "service": "leadminer-backend",
+            "error": str(e)
+        }
