@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -153,6 +153,9 @@ class Lead(BaseModel):
     notes: str = ""
     tags: List[str] = []
     source: str = "hashtag"
+    # Lead Scoring fields
+    score: int = 0  # 0-100 score
+    score_breakdown: Dict[str, int] = Field(default_factory=dict)  # Detailed breakdown
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class LeadUpdate(BaseModel):
@@ -420,6 +423,152 @@ async def notify_search_complete(user_id: str, search_id: str, leads_found: int,
         data={"search_id": search_id, "leads_found": leads_found},
         send_email=True
     )
+
+# ===================== LEAD SCORING SYSTEM =====================
+
+# Keywords that indicate high-value leads (business-oriented)
+HIGH_VALUE_KEYWORDS = [
+    # Business
+    "empreendedor", "empresário", "ceo", "founder", "cofundador", "diretor",
+    "gerente", "gestor", "consultor", "coach", "mentor", "especialista",
+    # Marketing/Sales
+    "marketing", "vendas", "sales", "growth", "digital", "social media",
+    "tráfego", "copywriter", "lançamento", "infoproduto",
+    # Niches
+    "imobiliária", "corretor", "advogado", "dentista", "médico", "nutricionista",
+    "personal", "arquiteto", "designer", "fotógrafo", "filmmaker",
+    # Business indicators
+    "contato", "orçamento", "whatsapp", "link na bio", "loja", "shop",
+    "encomendas", "atendimento", "agendamento",
+    # English keywords
+    "business", "entrepreneur", "agency", "studio", "brand", "company"
+]
+
+def calculate_lead_score(lead_data: Dict) -> Tuple[int, Dict[str, int]]:
+    """
+    Calculate lead score based on multiple factors.
+    Returns (total_score, breakdown_dict)
+    
+    Scoring Criteria:
+    - Followers: 0-25 points
+    - Email present: 0-20 points
+    - Phone present: 0-15 points
+    - Keywords in bio: 0-20 points
+    - Bio completeness: 0-10 points
+    - Name present: 0-10 points
+    """
+    breakdown = {
+        "followers": 0,
+        "email": 0,
+        "phone": 0,
+        "keywords": 0,
+        "bio_quality": 0,
+        "profile_complete": 0
+    }
+    
+    # 1. Followers Score (0-25 points)
+    followers = lead_data.get("followers") or 0
+    if followers >= 100000:
+        breakdown["followers"] = 25
+    elif followers >= 50000:
+        breakdown["followers"] = 22
+    elif followers >= 10000:
+        breakdown["followers"] = 20
+    elif followers >= 5000:
+        breakdown["followers"] = 18
+    elif followers >= 1000:
+        breakdown["followers"] = 15
+    elif followers >= 500:
+        breakdown["followers"] = 10
+    elif followers >= 100:
+        breakdown["followers"] = 5
+    else:
+        breakdown["followers"] = 2
+    
+    # 2. Email Score (0-20 points)
+    email = lead_data.get("email")
+    if email:
+        breakdown["email"] = 20
+        # Bonus for business email domains
+        if email and not any(d in email.lower() for d in ["gmail", "hotmail", "outlook", "yahoo"]):
+            breakdown["email"] = 25  # Business email bonus
+    
+    # 3. Phone Score (0-15 points)
+    phone = lead_data.get("phone")
+    if phone:
+        breakdown["phone"] = 15
+    
+    # 4. Keywords Score (0-20 points)
+    bio = (lead_data.get("bio") or "").lower()
+    name = (lead_data.get("name") or "").lower()
+    combined_text = f"{bio} {name}"
+    
+    keyword_matches = 0
+    for keyword in HIGH_VALUE_KEYWORDS:
+        if keyword.lower() in combined_text:
+            keyword_matches += 1
+    
+    if keyword_matches >= 5:
+        breakdown["keywords"] = 20
+    elif keyword_matches >= 3:
+        breakdown["keywords"] = 15
+    elif keyword_matches >= 2:
+        breakdown["keywords"] = 10
+    elif keyword_matches >= 1:
+        breakdown["keywords"] = 5
+    
+    # 5. Bio Quality Score (0-10 points)
+    bio_length = len(bio)
+    if bio_length >= 150:
+        breakdown["bio_quality"] = 10
+    elif bio_length >= 100:
+        breakdown["bio_quality"] = 8
+    elif bio_length >= 50:
+        breakdown["bio_quality"] = 5
+    elif bio_length > 0:
+        breakdown["bio_quality"] = 2
+    
+    # 6. Profile Completeness (0-10 points)
+    completeness_score = 0
+    if lead_data.get("name"):
+        completeness_score += 4
+    if lead_data.get("bio"):
+        completeness_score += 3
+    if lead_data.get("profile_url"):
+        completeness_score += 3
+    breakdown["profile_complete"] = min(completeness_score, 10)
+    
+    # Calculate total score (cap at 100)
+    total_score = min(sum(breakdown.values()), 100)
+    
+    return total_score, breakdown
+
+def get_qualification_from_score(score: int) -> str:
+    """Determine lead qualification based on score"""
+    if score >= 70:
+        return "quente"
+    elif score >= 40:
+        return "morno"
+    else:
+        return "frio"
+
+async def score_and_update_lead(lead_id: str):
+    """Calculate and update score for a specific lead"""
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
+    if lead:
+        score, breakdown = calculate_lead_score(lead)
+        qualification = get_qualification_from_score(score)
+        
+        await db.leads.update_one(
+            {"id": lead_id},
+            {"$set": {
+                "score": score,
+                "score_breakdown": breakdown,
+                "qualification": qualification
+            }}
+        )
+        return score, breakdown, qualification
+    return 0, {}, "frio"
 
 # ===================== AUTH ROUTES =====================
 
@@ -1131,8 +1280,12 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         # Limit to requested leads
         all_leads = all_leads[:leads_to_fetch]
         
-        # Save leads to database
+        # Save leads to database with scoring
         for lead_data in all_leads:
+            # Calculate lead score
+            score, score_breakdown = calculate_lead_score(lead_data)
+            qualification = get_qualification_from_score(score)
+            
             lead = Lead(
                 search_id=search_id,
                 user_id=user_id,
@@ -1143,12 +1296,17 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
                 phone=lead_data.get('phone'),
                 profile_url=lead_data.get('profile_url', f"https://instagram.com/{lead_data.get('username', '')}"),
                 followers=lead_data.get('followers'),
-                source=lead_data.get('source', 'hashtag')
+                source=lead_data.get('source', 'hashtag'),
+                score=score,
+                score_breakdown=score_breakdown,
+                qualification=qualification
             )
             
             lead_dict = lead.model_dump()
             lead_dict["created_at"] = lead_dict["created_at"].isoformat()
             await db.leads.insert_one(lead_dict)
+            
+            logging.info(f"Lead @{lead.username} scored: {score} ({qualification})")
         
         # Update user's leads count
         await db.users.update_one(
@@ -1450,6 +1608,10 @@ async def get_search(search_id: str, current_user: User = Depends(get_current_us
 async def get_leads(
     search_id: Optional[str] = None,
     status: Optional[str] = None,
+    qualification: Optional[str] = None,
+    min_score: Optional[int] = None,
+    max_score: Optional[int] = None,
+    sort_by: Optional[str] = "created_at",  # created_at, score, followers
     current_user: User = Depends(get_current_user)
 ):
     filters = {"user_id": current_user.id}
@@ -1457,14 +1619,105 @@ async def get_leads(
         filters["search_id"] = search_id
     if status:
         filters["status"] = status
+    if qualification:
+        filters["qualification"] = qualification
+    if min_score is not None:
+        filters["score"] = {"$gte": min_score}
+    if max_score is not None:
+        if "score" in filters:
+            filters["score"]["$lte"] = max_score
+        else:
+            filters["score"] = {"$lte": max_score}
     
-    leads = await db.leads.find(filters, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    # Determine sort order
+    sort_field = "created_at"
+    sort_order = -1  # descending
+    if sort_by == "score":
+        sort_field = "score"
+    elif sort_by == "followers":
+        sort_field = "followers"
+    
+    leads = await db.leads.find(filters, {"_id": 0}).sort(sort_field, sort_order).to_list(1000)
     
     for lead in leads:
         if isinstance(lead.get('created_at'), str):
             lead['created_at'] = datetime.fromisoformat(lead['created_at'])
+        # Ensure score fields exist for older leads
+        if 'score' not in lead:
+            lead['score'] = 0
+        if 'score_breakdown' not in lead:
+            lead['score_breakdown'] = {}
     
     return leads
+
+@api_router.post("/leads/recalculate-scores")
+async def recalculate_all_scores(current_user: User = Depends(get_current_user)):
+    """Recalculate scores for all leads of the current user"""
+    leads = await db.leads.find({"user_id": current_user.id}, {"_id": 0}).to_list(10000)
+    
+    updated_count = 0
+    for lead in leads:
+        score, breakdown = calculate_lead_score(lead)
+        qualification = get_qualification_from_score(score)
+        
+        await db.leads.update_one(
+            {"id": lead["id"]},
+            {"$set": {
+                "score": score,
+                "score_breakdown": breakdown,
+                "qualification": qualification
+            }}
+        )
+        updated_count += 1
+    
+    return {
+        "success": True,
+        "updated_count": updated_count,
+        "message": f"Recalculados {updated_count} leads"
+    }
+
+@api_router.get("/leads/score-stats")
+async def get_score_stats(current_user: User = Depends(get_current_user)):
+    """Get score statistics for the user's leads"""
+    leads = await db.leads.find({"user_id": current_user.id}, {"_id": 0, "score": 1, "qualification": 1}).to_list(10000)
+    
+    total = len(leads)
+    if total == 0:
+        return {
+            "total": 0,
+            "average_score": 0,
+            "hot_leads": 0,
+            "warm_leads": 0,
+            "cold_leads": 0,
+            "hot_percentage": 0,
+            "score_distribution": []
+        }
+    
+    scores = [l.get("score", 0) for l in leads]
+    average_score = sum(scores) / total
+    
+    hot = sum(1 for l in leads if l.get("qualification") == "quente")
+    warm = sum(1 for l in leads if l.get("qualification") == "morno")
+    cold = sum(1 for l in leads if l.get("qualification") == "frio")
+    
+    # Score distribution (buckets of 10)
+    distribution = [0] * 10
+    for score in scores:
+        bucket = min(score // 10, 9)
+        distribution[bucket] += 1
+    
+    return {
+        "total": total,
+        "average_score": round(average_score, 1),
+        "hot_leads": hot,
+        "warm_leads": warm,
+        "cold_leads": cold,
+        "hot_percentage": round(hot / total * 100, 1),
+        "score_distribution": [
+            {"range": f"{i*10}-{i*10+9}", "count": distribution[i]}
+            for i in range(10)
+        ]
+    }
 
 @api_router.patch("/leads/{lead_id}", response_model=Lead)
 async def update_lead(
@@ -1488,14 +1741,14 @@ async def update_lead(
 
 @api_router.get("/leads/export/csv")
 async def export_leads_csv(current_user: User = Depends(get_current_user)):
-    leads = await db.leads.find({"user_id": current_user.id}, {"_id": 0}).to_list(10000)
+    leads = await db.leads.find({"user_id": current_user.id}, {"_id": 0}).sort("score", -1).to_list(10000)
     
     import csv
     from io import StringIO
     from fastapi.responses import StreamingResponse
     
     output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=["username", "name", "email", "phone", "bio", "profile_url", "followers", "status"])
+    writer = csv.DictWriter(output, fieldnames=["username", "name", "email", "phone", "bio", "profile_url", "followers", "score", "qualification", "status"])
     writer.writeheader()
     
     for lead in leads:
@@ -1507,6 +1760,8 @@ async def export_leads_csv(current_user: User = Depends(get_current_user)):
             "bio": lead.get("bio", ""),
             "profile_url": lead.get("profile_url", ""),
             "followers": lead.get("followers", ""),
+            "score": lead.get("score", 0),
+            "qualification": lead.get("qualification", ""),
             "status": lead.get("status", "")
         })
     

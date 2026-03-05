@@ -296,6 +296,135 @@ class LeadMinerTester:
         except Exception as e:
             self.log_result("Leads - Export CSV", False, f"Exception: {str(e)}")
             return False
+
+    async def test_leads_with_scoring_params(self) -> bool:
+        """Test GET /api/leads with new scoring parameters"""
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            
+            # Test 1: Sort by score
+            response = await self.client.get(f"{self.base_url}/leads?sort_by=score", headers=headers)
+            if response.status_code != 200:
+                self.log_result("Leads - Sort by Score", False, f"Status: {response.status_code}")
+                return False
+            
+            leads_by_score = response.json()
+            
+            # Test 2: Sort by followers
+            response = await self.client.get(f"{self.base_url}/leads?sort_by=followers", headers=headers)
+            if response.status_code != 200:
+                self.log_result("Leads - Sort by Followers", False, f"Status: {response.status_code}")
+                return False
+                
+            leads_by_followers = response.json()
+            
+            # Test 3: Sort by created_at (default)
+            response = await self.client.get(f"{self.base_url}/leads?sort_by=created_at", headers=headers)
+            if response.status_code != 200:
+                self.log_result("Leads - Sort by Created At", False, f"Status: {response.status_code}")
+                return False
+                
+            leads_by_date = response.json()
+            
+            # Test 4: Filter by qualification
+            response = await self.client.get(f"{self.base_url}/leads?qualification=quente", headers=headers)
+            if response.status_code != 200:
+                self.log_result("Leads - Filter by Qualification", False, f"Status: {response.status_code}")
+                return False
+                
+            hot_leads = response.json()
+            
+            # Test 5: Filter by min_score
+            response = await self.client.get(f"{self.base_url}/leads?min_score=50", headers=headers)
+            if response.status_code != 200:
+                self.log_result("Leads - Filter by Min Score", False, f"Status: {response.status_code}")
+                return False
+                
+            high_score_leads = response.json()
+            
+            # Validate that leads include score and score_breakdown fields
+            all_leads = [leads_by_score, leads_by_followers, leads_by_date, hot_leads, high_score_leads]
+            for leads in all_leads:
+                if isinstance(leads, list) and len(leads) > 0:
+                    for lead in leads:
+                        if "score" not in lead or "score_breakdown" not in lead:
+                            self.log_result("Leads - Score Fields", False, "Missing score or score_breakdown fields")
+                            return False
+            
+            self.log_result("Leads - Scoring Parameters", True, 
+                          f"All sorting and filtering tests passed. Hot leads: {len(hot_leads)}, High score: {len(high_score_leads)}")
+            return True
+                
+        except Exception as e:
+            self.log_result("Leads - Scoring Parameters", False, f"Exception: {str(e)}")
+            return False
+
+    async def test_recalculate_scores(self) -> bool:
+        """Test POST /api/leads/recalculate-scores"""
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = await self.client.post(f"{self.base_url}/leads/recalculate-scores", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = ["success", "updated_count", "message"]
+                if all(field in data for field in required_fields):
+                    if data["success"] is True:
+                        self.log_result("Leads - Recalculate Scores", True, 
+                                      f"Recalculated {data['updated_count']} leads: {data['message']}")
+                        return True
+                    else:
+                        self.log_result("Leads - Recalculate Scores", False, "Success field is not True")
+                        return False
+                else:
+                    missing = [f for f in required_fields if f not in data]
+                    self.log_result("Leads - Recalculate Scores", False, f"Missing fields: {missing}")
+                    return False
+            else:
+                self.log_result("Leads - Recalculate Scores", False, f"Status: {response.status_code}, Body: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Leads - Recalculate Scores", False, f"Exception: {str(e)}")
+            return False
+
+    async def test_score_stats(self) -> bool:
+        """Test GET /api/leads/score-stats"""
+        try:
+            headers = {"Authorization": f"Bearer {self.auth_token}"}
+            response = await self.client.get(f"{self.base_url}/leads/score-stats", headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                required_fields = ["total", "average_score", "hot_leads", "warm_leads", "cold_leads", "hot_percentage", "score_distribution"]
+                if all(field in data for field in required_fields):
+                    # Validate score_distribution structure
+                    distribution = data["score_distribution"]
+                    if isinstance(distribution, list):
+                        for bucket in distribution:
+                            if not isinstance(bucket, dict) or "range" not in bucket or "count" not in bucket:
+                                self.log_result("Leads - Score Stats", False, "Invalid score_distribution structure")
+                                return False
+                        
+                        self.log_result("Leads - Score Stats", True, 
+                                      f"Total: {data['total']}, Avg Score: {data['average_score']}, "
+                                      f"Hot: {data['hot_leads']}, Warm: {data['warm_leads']}, Cold: {data['cold_leads']} "
+                                      f"({data['hot_percentage']}% hot)")
+                        return True
+                    else:
+                        self.log_result("Leads - Score Stats", False, "score_distribution is not a list")
+                        return False
+                else:
+                    missing = [f for f in required_fields if f not in data]
+                    self.log_result("Leads - Score Stats", False, f"Missing fields: {missing}")
+                    return False
+            else:
+                self.log_result("Leads - Score Stats", False, f"Status: {response.status_code}, Body: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_result("Leads - Score Stats", False, f"Exception: {str(e)}")
+            return False
     
     async def test_scraping_accounts_crud(self) -> bool:
         """Test scraping accounts CRUD operations"""
@@ -571,6 +700,11 @@ class LeadMinerTester:
             if lead_id:
                 await self.test_update_lead(lead_id)
             await self.test_export_leads_csv()
+            
+            print("\n🎯 LEAD SCORING TESTS")
+            await self.test_recalculate_scores()
+            await self.test_score_stats()  
+            await self.test_leads_with_scoring_params()
             
             print("\n🛠️  ADMIN TESTS (Medium Priority)")
             await self.test_scraping_accounts_crud()
