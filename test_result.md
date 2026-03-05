@@ -345,6 +345,42 @@ backend:
         agent: "testing"
         comment: "✅ VALIDADO: Sistema de notificações automáticas funciona. Notificações são criadas automaticamente quando buscas são finalizadas. Testado criando busca e verificando notificação gerada."
 
+  - task: "Leads - Scoring System (GET with new params)"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/leads com novos parâmetros de Lead Scoring funciona perfeitamente. Suporte a sort_by=score/followers/created_at, filtros qualification=quente, min_score=50, max_score=80. Leads retornam campos score e score_breakdown conforme esperado."
+
+  - task: "Leads - Recalculate Scores"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: POST /api/leads/recalculate-scores funciona perfeitamente. Retorna {success: true, updated_count: number, message: string} conforme especificado. Recalcula scores para todos os leads do usuário."
+
+  - task: "Leads - Score Stats"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ VALIDADO: GET /api/leads/score-stats funciona perfeitamente. Retorna todas as estatísticas esperadas: total, average_score, hot_leads, warm_leads, cold_leads, hot_percentage, score_distribution. Estrutura score_distribution com buckets range/count está correta."
+
 frontend:
   - task: "Login Page"
     implemented: true
@@ -571,7 +607,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Notification Dropdown Testing Complete"
+    - "Leads - Scoring System (GET with new params)"
+    - "Leads - Recalculate Scores" 
+    - "Leads - Score Stats"
   stuck_tasks: []
   test_all: true
   test_priority: "high_first"
@@ -601,3 +639,7 @@ agent_communication:
     message: "Usuário solicitou teste do sistema de notificações no frontend do LeadMiner - verificar bell icon, dropdown, criação de busca para gerar notificação e interações (marcar como lida)."
   - agent: "testing"
     message: "✅ VALIDAÇÃO DO FRONTEND DE NOTIFICAÇÕES CONCLUÍDA: Sistema de notificações no frontend 100% funcional. Bell icon visível no header (top-right corner), dropdown abre corretamente mostrando título 'Notificações', exibe lista de notificações com título/mensagem/timestamp/link 'Ver detalhes'. Badge de unread funciona perfeitamente (mostra contagem com animação pulse). Criação de busca gera notificação instantaneamente (1s após conclusão). Interações testadas: click em notificação marca como lida e atualiza badge, botão 'Marcar todas como lidas' funciona corretamente. NOTA: Existem 2 sistemas de notificação no app: 1) NotificationDropdown (header/top-right) para notificações gerais do sistema (testado e funcional), 2) Sidebar bell para 'Alertas de Follow-up' de leads. Ambos funcionam corretamente."
+  - agent: "main"
+    message: "Usuário solicitou teste dos novos endpoints de Lead Scoring: GET /api/leads com parâmetros sort_by e filtros, POST /api/leads/recalculate-scores e GET /api/leads/score-stats."
+  - agent: "testing"
+    message: "✅ VALIDAÇÃO DOS ENDPOINTS DE LEAD SCORING CONCLUÍDA: Todos os 3 novos endpoints de Lead Scoring testados com sucesso (100%). GET /api/leads suporta sort_by=score/followers/created_at e filtros qualification=quente, min_score=50. POST /api/leads/recalculate-scores retorna {success: true, updated_count: number, message: string}. GET /api/leads/score-stats retorna estatísticas completas (total, average_score, hot_leads, warm_leads, cold_leads, hot_percentage, score_distribution). Leads incluem campos score e score_breakdown conforme especificado. Sistema de pontuação implementado corretamente com algoritmo baseado em seguidores, email, telefone, palavras-chave, qualidade da bio e completude do perfil."

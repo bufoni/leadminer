@@ -10,7 +10,8 @@ import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2 } from 'lucide-react';
+import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
+import { ScoreWithTooltip, ScoreStatsSummary } from '../components/LeadScore';
 
 const LeadsPage = () => {
   const [searchParams] = useSearchParams();
@@ -22,14 +23,18 @@ const LeadsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [qualificationFilter, setQualificationFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('score');
   const [editingLead, setEditingLead] = useState(null);
   const [editNotes, setEditNotes] = useState('');
   const [aiMessageLead, setAiMessageLead] = useState(null);
   const [suggestedMessage, setSuggestedMessage] = useState('');
   const [generatingMessage, setGeneratingMessage] = useState(false);
+  const [scoreStats, setScoreStats] = useState(null);
+  const [recalculating, setRecalculating] = useState(false);
 
   useEffect(() => {
     fetchLeads();
+    fetchScoreStats();
   }, [searchId]);
 
   useEffect(() => {
@@ -38,13 +43,37 @@ const LeadsPage = () => {
 
   const fetchLeads = async () => {
     try {
-      const params = searchId ? { search_id: searchId } : {};
+      const params = { sort_by: sortBy };
+      if (searchId) params.search_id = searchId;
       const response = await api.get('/leads', { params });
       setLeads(response.data);
     } catch (error) {
       toast.error('Erro ao carregar leads');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchScoreStats = async () => {
+    try {
+      const response = await api.get('/leads/score-stats');
+      setScoreStats(response.data);
+    } catch (error) {
+      console.error('Error fetching score stats:', error);
+    }
+  };
+
+  const recalculateScores = async () => {
+    setRecalculating(true);
+    try {
+      const response = await api.post('/leads/recalculate-scores');
+      toast.success(response.data.message);
+      fetchLeads();
+      fetchScoreStats();
+    } catch (error) {
+      toast.error('Erro ao recalcular scores');
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -205,19 +234,41 @@ const LeadsPage = () => {
             <h1 className="text-4xl font-bold mb-2">Leads</h1>
             <p className="text-gray-400">{filteredLeads.length} leads encontrados</p>
           </div>
-          <Button
-            data-testid="export-csv-button"
-            onClick={exportCSV}
-            className="bg-violet-600 hover:bg-violet-700 text-white"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Exportar CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={recalculateScores}
+              disabled={recalculating}
+              variant="outline"
+              className="border-gray-700 text-gray-300 hover:bg-gray-800"
+            >
+              {recalculating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Recalcular Scores
+            </Button>
+            <Button
+              data-testid="export-csv-button"
+              onClick={exportCSV}
+              className="bg-violet-600 hover:bg-violet-700 text-white"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Exportar CSV
+            </Button>
+          </div>
         </div>
+
+        {/* Score Stats Summary */}
+        {scoreStats && scoreStats.total > 0 && (
+          <div className="mb-6">
+            <ScoreStatsSummary stats={scoreStats} />
+          </div>
+        )}
 
         {/* Filters */}
         <Card className="bg-gray-900/50 border-white/5 p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -245,9 +296,20 @@ const LeadsPage = () => {
               </SelectTrigger>
               <SelectContent className="bg-gray-900 border-gray-800 text-white">
                 <SelectItem value="all">Todas as qualificações</SelectItem>
-                <SelectItem value="quente">Quente</SelectItem>
-                <SelectItem value="morno">Morno</SelectItem>
-                <SelectItem value="frio">Frio</SelectItem>
+                <SelectItem value="quente">🔥 Quente (70+)</SelectItem>
+                <SelectItem value="morno">⚡ Morno (40-69)</SelectItem>
+                <SelectItem value="frio">❄️ Frio (0-39)</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={(value) => { setSortBy(value); fetchLeads(); }}>
+              <SelectTrigger className="bg-gray-950/50 border-gray-800 text-white">
+                <TrendingUp className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-900 border-gray-800 text-white">
+                <SelectItem value="score">Maior Score</SelectItem>
+                <SelectItem value="followers">Mais Seguidores</SelectItem>
+                <SelectItem value="created_at">Mais Recentes</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -271,6 +333,11 @@ const LeadsPage = () => {
                 className="bg-gray-900/50 border-white/5 p-4 hover:border-violet-500/30 transition-all"
               >
                 <div className="flex flex-col md:flex-row gap-4">
+                  {/* Score Badge */}
+                  <div className="flex-shrink-0 flex items-center justify-center">
+                    <ScoreWithTooltip score={lead.score || 0} breakdown={lead.score_breakdown || {}} />
+                  </div>
+                  
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold text-lg">{lead.name || lead.username}</h3>
@@ -286,6 +353,7 @@ const LeadsPage = () => {
                           lead.qualification || 'morno'
                         )}`}
                       >
+                        {lead.qualification === 'quente' ? '🔥 ' : lead.qualification === 'frio' ? '❄️ ' : '⚡ '}
                         {lead.qualification || 'morno'}
                       </span>
                     </div>
