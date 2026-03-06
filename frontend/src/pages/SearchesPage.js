@@ -5,7 +5,7 @@ import api from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw, Camera, Music2 } from 'lucide-react';
 
 const SearchesPage = () => {
   const [searches, setSearches] = useState([]);
@@ -104,8 +104,8 @@ const SearchesPage = () => {
                 className="bg-gray-900/50 border-white/5 p-6 hover:border-violet-500/30 transition-all"
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold text-lg">
                         {search.keywords.length > 0
                           ? search.keywords.join(', ')
@@ -118,6 +118,15 @@ const SearchesPage = () => {
                       >
                         {getStatusText(search.status)}
                       </span>
+                      {search.platform === 'tiktok' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                          <Music2 className="h-3.5 w-3.5" /> TikTok
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                          <Camera className="h-3.5 w-3.5" /> Instagram
+                        </span>
+                      )}
                     </div>
                     {search.hashtags.length > 0 && (
                       <p className="text-sm text-gray-400 mb-1">#{search.hashtags.join(' #')}</p>

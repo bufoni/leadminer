@@ -5,7 +5,7 @@ import api from '../lib/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
-import { Users, Search, TrendingUp, Package } from 'lucide-react';
+import { Users, Search, TrendingUp, Package, Camera, Music2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -158,8 +158,17 @@ const Dashboard = () => {
                   className="flex items-center justify-between p-4 bg-gray-950/50 rounded-lg border border-white/5 hover:border-violet-500/30 transition-all"
                 >
                   <div className="flex-1">
-                    <div className="font-medium mb-1">
+                    <div className="font-medium mb-1 flex items-center gap-2 flex-wrap">
                       {search.keywords.join(', ') || 'Sem palavras-chave'}
+                      {search.platform === 'tiktok' ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-white/10 text-gray-400">
+                          <Music2 className="h-3 w-3" /> TikTok
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-white/10 text-gray-400">
+                          <Camera className="h-3 w-3" /> Instagram
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-gray-400">
                       {search.hashtags.length > 0 && `#${search.hashtags.join(' #')}`}

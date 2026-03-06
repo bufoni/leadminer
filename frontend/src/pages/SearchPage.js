@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Plus, X, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, X, Users, Camera, Music2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const SearchPage = () => {
@@ -17,6 +17,7 @@ const SearchPage = () => {
   const [hashtags, setHashtags] = useState(['']);
   const [location, setLocation] = useState('');
   const [maxLeads, setMaxLeads] = useState(10);
+  const [platform, setPlatform] = useState('instagram'); // 'instagram' | 'tiktok'
   
   // Calculate leads remaining
   const leadsRemaining = Math.max(0, (user?.leads_limit || 0) - (user?.leads_used || 0));
@@ -62,7 +63,8 @@ const SearchPage = () => {
         keywords: validKeywords,
         hashtags: validHashtags,
         location: location.trim() || null,
-        max_leads: maxLeads
+        max_leads: maxLeads,
+        platform
       });
       
       // Update user's leads used count optimistically
@@ -84,7 +86,7 @@ const SearchPage = () => {
       <div className="p-8 max-w-3xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Nova Busca</h1>
-          <p className="text-gray-400">Configure os parâmetros para encontrar leads no Instagram</p>
+          <p className="text-gray-400">Configure os parâmetros para encontrar leads no Instagram ou TikTok</p>
         </div>
 
         {/* Plan Info */}
@@ -116,6 +118,39 @@ const SearchPage = () => {
         {/* Search Form */}
         <Card className="bg-gray-900/50 border-white/5 p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Platform */}
+            <div className="space-y-3">
+              <Label>Plataforma</Label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  data-testid="platform-instagram"
+                  onClick={() => setPlatform('instagram')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-all ${
+                    platform === 'instagram'
+                      ? 'border-violet-500 bg-violet-500/20 text-violet-300'
+                      : 'border-white/10 bg-gray-950/50 text-gray-400 hover:border-white/20'
+                  }`}
+                >
+                  <Camera className="h-5 w-5" />
+                  Instagram
+                </button>
+                <button
+                  type="button"
+                  data-testid="platform-tiktok"
+                  onClick={() => setPlatform('tiktok')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-all ${
+                    platform === 'tiktok'
+                      ? 'border-violet-500 bg-violet-500/20 text-violet-300'
+                      : 'border-white/10 bg-gray-950/50 text-gray-400 hover:border-white/20'
+                  }`}
+                >
+                  <Music2 className="h-5 w-5" />
+                  TikTok
+                </button>
+              </div>
+            </div>
+
             {/* Keywords */}
             <div className="space-y-3">
               <Label>Palavras-chave</Label>

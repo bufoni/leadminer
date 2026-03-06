@@ -163,7 +163,20 @@ class TikTokScraper:
         """)
         
         self.page = await self.context.new_page()
+        if proxy:
+            await self._block_heavy_resources()
         return self.page
+    
+    async def _block_heavy_resources(self):
+        """Block images, media and fonts to save proxy bandwidth (HTML/JS/XHR still load)."""
+        async def handle_route(route):
+            resource_type = route.request.resource_type
+            if resource_type in ("image", "media", "font"):
+                await route.abort()
+            else:
+                await route.continue_()
+        await self.page.route("**/*", handle_route)
+        logger.info("Proxy data-saver: blocking image, media and font requests")
     
     async def scrape_profile(self, username: str) -> Optional[Dict]:
         """Scrape a TikTok profile"""
@@ -174,8 +187,12 @@ class TikTokScraper:
             await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(3, 5)
             
-            # Wait for content
-            await self.page.wait_for_load_state('networkidle', timeout=30000)
+            # Wait for content (avoid networkidle to save proxy data)
+            await self.page.wait_for_load_state('domcontentloaded')
+            try:
+                await self.page.wait_for_selector('script#__UNIVERSAL_DATA_FOR_REHYDRATION__, script#SIGI_STATE', timeout=15000)
+            except Exception:
+                pass
             
             result = {
                 'username': username,
@@ -204,24 +221,39 @@ class TikTokScraper:
                 try:
                     data = json.loads(script.string)
                     
-                    # Navigate to user data (structure may vary)
+                    # Navigate to user data (TikTok page structure varies by region/version)
                     user_data = None
+                    stats = {}
                     
-                    # Try different paths
                     if '__DEFAULT_SCOPE__' in data:
                         user_detail = data.get('__DEFAULT_SCOPE__', {}).get('webapp.user-detail', {})
                         user_data = user_detail.get('userInfo', {}).get('user', {})
-                        stats = user_detail.get('userInfo', {}).get('stats', {})
-                    elif 'UserModule' in data:
+                        stats = user_detail.get('userInfo', {}).get('stats', {}) or {}
+                    if not user_data and 'UserModule' in data:
                         users = data.get('UserModule', {}).get('users', {})
-                        if users:
-                            user_data = list(users.values())[0] if users else None
-                        stats_module = data.get('UserModule', {}).get('stats', {})
-                        stats = list(stats_module.values())[0] if stats_module else {}
+                        if isinstance(users, dict):
+                            for v in users.values():
+                                if isinstance(v, dict) and (v.get('uniqueId') == username or v.get('nickname')):
+                                    user_data = v
+                                    break
+                            if not user_data and users:
+                                user_data = list(users.values())[0]
+                        stats = data.get('UserModule', {}).get('stats', {})
+                        if isinstance(stats, dict) and stats:
+                            stats = list(stats.values())[0] if stats else {}
+                    if not user_data and 'ItemModule' in data:
+                        item_module = data.get('ItemModule', {})
+                        for _id, item in (list(item_module.items())[:5] if isinstance(item_module, dict) else []):
+                            author = (item or {}).get('author') if isinstance(item, dict) else None
+                            if author and (author == username or (isinstance(author, dict) and author.get('uniqueId') == username)):
+                                user_data = author if isinstance(author, dict) else {'uniqueId': author, 'nickname': author}
+                                break
                     
                     if user_data:
-                        result['name'] = user_data.get('nickname') or user_data.get('uniqueId')
-                        result['bio'] = user_data.get('signature', '')
+                        if isinstance(user_data, str):
+                            user_data = {'uniqueId': user_data, 'nickname': user_data}
+                        result['name'] = user_data.get('nickname') or user_data.get('uniqueId') or username
+                        result['bio'] = user_data.get('signature') or user_data.get('bio', '') or ''
                         
                         # Extract contact info from bio
                         if result['bio']:
@@ -229,12 +261,12 @@ class TikTokScraper:
                             result['email'] = contact['email']
                             result['phone'] = contact['phone']
                         
-                        # Stats
-                        if stats:
-                            result['followers'] = stats.get('followerCount')
-                            result['following'] = stats.get('followingCount')
+                        # Stats (can be dict or nested)
+                        if stats and isinstance(stats, dict):
+                            result['followers'] = stats.get('followerCount') or stats.get('followers')
+                            result['following'] = stats.get('followingCount') or stats.get('following')
                             result['likes'] = stats.get('heartCount') or stats.get('heart')
-                            result['videos'] = stats.get('videoCount')
+                            result['videos'] = stats.get('videoCount') or stats.get('videos')
                         
                         logger.info(f"TikTok @{username}: {result['name']}, {result['followers']} followers")
                         return result
@@ -271,12 +303,17 @@ class TikTokScraper:
             return None
     
     async def scrape_hashtag(self, hashtag: str, max_profiles: int = 20) -> List[Dict]:
-        """Scrape profiles from a TikTok hashtag"""
+        """Scrape profiles from a TikTok hashtag (tries discover and tag URLs)."""
         results = []
         
         try:
             hashtag_clean = hashtag.replace('#', '').strip()
-            url = f"https://www.tiktok.com/tag/{hashtag_clean}"
+            # TikTok web: discover is primary; /tag/ still exists for some regions
+            urls_to_try = [
+                f"https://www.tiktok.com/discover/{hashtag_clean}",
+                f"https://www.tiktok.com/tag/{hashtag_clean}",
+            ]
+            url = urls_to_try[0]
             
             logger.info(f"Navigating to TikTok hashtag: #{hashtag_clean}")
             await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
@@ -311,6 +348,28 @@ class TikTokScraper:
                                     logger.info(f"Found TikTok username: @{username}")
                 except Exception as e:
                     continue
+            
+            # If discover had no profile links, try /tag/ URL
+            if not usernames_found and len(urls_to_try) > 1:
+                url = urls_to_try[1]
+                logger.info(f"Trying fallback URL: {url}")
+                await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                await self.human_delay(3, 5)
+                await self.human_scroll(self.page, times=4)
+                links = await self.page.query_selector_all('a[href*="/@"]')
+                for link in links:
+                    if len(usernames_found) >= max_profiles * 2:
+                        break
+                    try:
+                        href = await link.get_attribute('href')
+                        if href and '/@' in href:
+                            match = re.search(r'/@([^/?]+)', href)
+                            if match:
+                                u = match.group(1)
+                                if u and u not in usernames_found and not any(x in u.lower() for x in ['tag', 'music', 'search', 'foryou', 'following']):
+                                    usernames_found.add(u)
+                    except Exception:
+                        continue
             
             logger.info(f"Collected {len(usernames_found)} unique TikTok usernames")
             
@@ -517,7 +576,20 @@ class HumanLikeScraper:
         """)
         
         self.page = await self.context.new_page()
+        if proxy:
+            await self._block_heavy_resources()
         return self.page
+    
+    async def _block_heavy_resources(self):
+        """Block images, media and fonts to save proxy bandwidth (HTML/JS/XHR still load)."""
+        async def handle_route(route):
+            resource_type = route.request.resource_type
+            if resource_type in ("image", "media", "font"):
+                await route.abort()
+            else:
+                await route.continue_()
+        await self.page.route("**/*", handle_route)
+        logger.info("Proxy data-saver: blocking image, media and font requests")
     
     async def login_instagram(self, account: Dict) -> bool:
         """Login to Instagram with human-like behavior"""
@@ -526,7 +598,7 @@ class HumanLikeScraper:
             
             # First, try going to Instagram to check if already logged in
             logger.info("Navigating to Instagram homepage...")
-            await self.page.goto('https://www.instagram.com/', timeout=30000)
+            await self.page.goto('https://www.instagram.com/', wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(4, 6)
             
             # Check current URL
@@ -536,7 +608,7 @@ class HumanLikeScraper:
             # If not on login page, we might be logged in - verify by going to explore
             if '/accounts/login' not in current_url:
                 # Try to access a page that requires login
-                await self.page.goto('https://www.instagram.com/explore/', timeout=30000)
+                await self.page.goto('https://www.instagram.com/explore/', wait_until='domcontentloaded', timeout=30000)
                 await self.human_delay(3, 5)
                 
                 if '/accounts/login' not in self.page.url:
@@ -551,7 +623,7 @@ class HumanLikeScraper:
             
             # Need to perform login
             logger.info("Going to login page...")
-            await self.page.goto('https://www.instagram.com/accounts/login/', timeout=30000)
+            await self.page.goto('https://www.instagram.com/accounts/login/', wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(4, 6)
             
             # Wait for page to load
@@ -673,8 +745,8 @@ class HumanLikeScraper:
         try:
             logger.info(f"Scraping profile: @{username}")
             
-            # Navigate to profile
-            await self.page.goto(f'https://www.instagram.com/{username}/', timeout=30000)
+            # Navigate to profile (domcontentloaded saves proxy data)
+            await self.page.goto(f'https://www.instagram.com/{username}/', wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(3, 5)
             
             # Check if redirected to login
@@ -832,11 +904,14 @@ class HumanLikeScraper:
             url = f"https://www.instagram.com/explore/tags/{hashtag_clean}/"
             
             logger.info(f"Navigating to hashtag: #{hashtag_clean}")
-            await self.page.goto(url, timeout=30000)
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(4, 6)
             
-            # Wait for page to load
-            await self.page.wait_for_load_state('networkidle', timeout=30000)
+            # Wait for content (avoid networkidle to save proxy data)
+            try:
+                await self.page.wait_for_selector('a[href^="/"]', timeout=20000)
+            except Exception:
+                pass
             
             # Log current URL (Instagram might redirect)
             current_url = self.page.url
@@ -880,7 +955,7 @@ class HumanLikeScraper:
                     if '/reel/' in href:
                         # Visit reel to get username
                         reel_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
-                        await self.page.goto(reel_url, timeout=20000)
+                        await self.page.goto(reel_url, wait_until='domcontentloaded', timeout=20000)
                         await self.human_delay(2, 4)
                         
                         # Find username in reel page
@@ -890,13 +965,13 @@ class HumanLikeScraper:
                             logger.info(f"Found username from reel: @{username}")
                         
                         # Go back to hashtag page
-                        await self.page.goto(url, timeout=20000)
+                        await self.page.goto(url, wait_until='domcontentloaded', timeout=20000)
                         await self.human_delay(2, 3)
                     
                     # Pattern 3: Post links (e.g., /p/ABC123/)
                     if '/p/' in href:
                         post_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
-                        await self.page.goto(post_url, timeout=20000)
+                        await self.page.goto(post_url, wait_until='domcontentloaded', timeout=20000)
                         await self.human_delay(2, 4)
                         
                         username = await self._extract_username_from_page()
@@ -904,7 +979,7 @@ class HumanLikeScraper:
                             usernames_found.add(username)
                             logger.info(f"Found username from post: @{username}")
                         
-                        await self.page.goto(url, timeout=20000)
+                        await self.page.goto(url, wait_until='domcontentloaded', timeout=20000)
                         await self.human_delay(2, 3)
                         
                 except Exception as e:
@@ -976,8 +1051,6 @@ class HumanLikeScraper:
             logger.debug(f"Error extracting username: {e}")
         
         return None
-        
-        return results
     
     async def close(self):
         """Close browser"""
