@@ -9,6 +9,7 @@ import logging
 import os
 import json
 import time
+from bs4 import BeautifulSoup
 
 # Configure logging
 logging.basicConfig(
@@ -17,10 +18,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="LeadMiner Scraper Service", version="2.0.0")
+app = FastAPI(title="LeadMiner Scraper Service", version="3.0.0")
 
 # Session storage path
-SESSION_DIR = "/tmp/instagram_sessions"
+SESSION_DIR = "/tmp/scraper_sessions"
 os.makedirs(SESSION_DIR, exist_ok=True)
 
 # ===================== MODELS =====================
@@ -43,6 +44,7 @@ class ScrapeRequest(BaseModel):
     max_profiles: int = 20
     accounts: List[AccountConfig] = []
     proxies: List[ProxyConfig] = []
+    platform: str = "instagram"  # "instagram" or "tiktok"
 
 class LeadResult(BaseModel):
     username: str
@@ -52,13 +54,331 @@ class LeadResult(BaseModel):
     phone: Optional[str] = None
     profile_url: str
     followers: Optional[int] = None
+    following: Optional[int] = None
+    likes: Optional[int] = None  # TikTok specific
+    videos: Optional[int] = None  # TikTok specific
     source: str = "hashtag"
+    platform: str = "instagram"
 
 class ScrapeResponse(BaseModel):
     success: bool
     leads: List[LeadResult]
     total_found: int
+    platform: str = "instagram"
     errors: List[str] = []
+
+# ===================== TIKTOK SCRAPER CLASS =====================
+
+class TikTokScraper:
+    """TikTok scraper with human-like behavior"""
+    
+    def __init__(self, proxies: List[Dict]):
+        self.proxies = proxies
+        self.browser = None
+        self.context = None
+        self.page = None
+    
+    def get_proxy(self) -> Optional[Dict]:
+        """Get available proxy"""
+        available = [p for p in self.proxies if p.get('status') == 'active']
+        return available[0] if available else None
+    
+    async def human_delay(self, min_sec: float = 1.0, max_sec: float = 3.0):
+        """Random delay to simulate human behavior"""
+        delay = random.uniform(min_sec, max_sec)
+        await asyncio.sleep(delay)
+    
+    async def human_scroll(self, page, times: int = 3):
+        """Scroll like a human"""
+        for _ in range(times):
+            scroll_amount = random.randint(300, 600)
+            await page.evaluate(f'window.scrollBy(0, {scroll_amount})')
+            await self.human_delay(1.5, 3.0)
+    
+    def extract_contact_info(self, bio: str) -> Dict[str, Optional[str]]:
+        """Extract email and phone from bio"""
+        email = None
+        phone = None
+        
+        if not bio:
+            return {'email': None, 'phone': None}
+        
+        # Email regex
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+        email_match = re.search(email_pattern, bio)
+        if email_match:
+            email = email_match.group(0)
+        
+        # Phone patterns
+        phone_patterns = [
+            r'\+?\d{1,3}?[-.\s]?\(?\d{2,3}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}',
+            r'\(\d{2}\)\s*\d{4,5}-?\d{4}',
+        ]
+        
+        for pattern in phone_patterns:
+            phone_match = re.search(pattern, bio)
+            if phone_match:
+                phone = phone_match.group(0)
+                break
+        
+        return {'email': email, 'phone': phone}
+    
+    async def setup_browser(self, proxy: Optional[Dict] = None):
+        """Setup browser with stealth settings"""
+        playwright = await async_playwright().start()
+        
+        browser_args = [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-blink-features=AutomationControlled',
+        ]
+        
+        self.browser = await playwright.chromium.launch(
+            headless=True,
+            args=browser_args
+        )
+        
+        context_options = {
+            'viewport': {'width': 1366, 'height': 768},
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'locale': 'pt-BR',
+            'timezone_id': 'America/Sao_Paulo',
+        }
+        
+        if proxy:
+            context_options['proxy'] = {
+                'server': f"http://{proxy['host']}:{proxy['port']}",
+            }
+            if proxy.get('username'):
+                context_options['proxy']['username'] = proxy['username']
+                context_options['proxy']['password'] = proxy.get('password', '')
+        
+        self.context = await self.browser.new_context(**context_options)
+        
+        # Stealth scripts
+        await self.context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+        """)
+        
+        self.page = await self.context.new_page()
+        return self.page
+    
+    async def scrape_profile(self, username: str) -> Optional[Dict]:
+        """Scrape a TikTok profile"""
+        try:
+            logger.info(f"Scraping TikTok profile: @{username}")
+            
+            url = f"https://www.tiktok.com/@{username}"
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await self.human_delay(3, 5)
+            
+            # Wait for content
+            await self.page.wait_for_load_state('networkidle', timeout=30000)
+            
+            result = {
+                'username': username,
+                'name': None,
+                'bio': None,
+                'email': None,
+                'phone': None,
+                'profile_url': url,
+                'followers': None,
+                'following': None,
+                'likes': None,
+                'videos': None,
+                'platform': 'tiktok'
+            }
+            
+            # Try to extract data from JSON script tag
+            content = await self.page.content()
+            soup = BeautifulSoup(content, 'html.parser')
+            
+            # Look for the data script
+            script = soup.find('script', id='__UNIVERSAL_DATA_FOR_REHYDRATION__')
+            if not script:
+                script = soup.find('script', id='SIGI_STATE')
+            
+            if script and script.string:
+                try:
+                    data = json.loads(script.string)
+                    
+                    # Navigate to user data (structure may vary)
+                    user_data = None
+                    
+                    # Try different paths
+                    if '__DEFAULT_SCOPE__' in data:
+                        user_detail = data.get('__DEFAULT_SCOPE__', {}).get('webapp.user-detail', {})
+                        user_data = user_detail.get('userInfo', {}).get('user', {})
+                        stats = user_detail.get('userInfo', {}).get('stats', {})
+                    elif 'UserModule' in data:
+                        users = data.get('UserModule', {}).get('users', {})
+                        if users:
+                            user_data = list(users.values())[0] if users else None
+                        stats_module = data.get('UserModule', {}).get('stats', {})
+                        stats = list(stats_module.values())[0] if stats_module else {}
+                    
+                    if user_data:
+                        result['name'] = user_data.get('nickname') or user_data.get('uniqueId')
+                        result['bio'] = user_data.get('signature', '')
+                        
+                        # Extract contact info from bio
+                        if result['bio']:
+                            contact = self.extract_contact_info(result['bio'])
+                            result['email'] = contact['email']
+                            result['phone'] = contact['phone']
+                        
+                        # Stats
+                        if stats:
+                            result['followers'] = stats.get('followerCount')
+                            result['following'] = stats.get('followingCount')
+                            result['likes'] = stats.get('heartCount') or stats.get('heart')
+                            result['videos'] = stats.get('videoCount')
+                        
+                        logger.info(f"TikTok @{username}: {result['name']}, {result['followers']} followers")
+                        return result
+                        
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON decode error: {e}")
+            
+            # Fallback: Try to extract from page text
+            try:
+                body_text = await self.page.inner_text('body')
+                
+                # Try to find followers count
+                followers_match = re.search(r'([\d.]+[KMB]?)\s*(?:Followers|Seguidores)', body_text, re.IGNORECASE)
+                if followers_match:
+                    followers_str = followers_match.group(1).replace(',', '')
+                    if 'K' in followers_str.upper():
+                        result['followers'] = int(float(followers_str.upper().replace('K', '')) * 1000)
+                    elif 'M' in followers_str.upper():
+                        result['followers'] = int(float(followers_str.upper().replace('M', '')) * 1000000)
+                    elif 'B' in followers_str.upper():
+                        result['followers'] = int(float(followers_str.upper().replace('B', '')) * 1000000000)
+                    else:
+                        result['followers'] = int(float(followers_str))
+                
+                return result
+                
+            except Exception as e:
+                logger.error(f"Fallback extraction failed: {e}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error scraping TikTok profile @{username}: {str(e)}")
+            return None
+    
+    async def scrape_hashtag(self, hashtag: str, max_profiles: int = 20) -> List[Dict]:
+        """Scrape profiles from a TikTok hashtag"""
+        results = []
+        
+        try:
+            hashtag_clean = hashtag.replace('#', '').strip()
+            url = f"https://www.tiktok.com/tag/{hashtag_clean}"
+            
+            logger.info(f"Navigating to TikTok hashtag: #{hashtag_clean}")
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await self.human_delay(4, 6)
+            
+            # Scroll to load more content
+            logger.info("Scrolling to load videos...")
+            await self.human_scroll(self.page, times=5)
+            
+            # Extract usernames from video links
+            usernames_found = set()
+            
+            # Get all links
+            links = await self.page.query_selector_all('a[href*="/@"]')
+            logger.info(f"Found {len(links)} profile links")
+            
+            for link in links:
+                if len(usernames_found) >= max_profiles * 2:
+                    break
+                    
+                try:
+                    href = await link.get_attribute('href')
+                    if href and '/@' in href:
+                        # Extract username from URL
+                        match = re.search(r'/@([^/?]+)', href)
+                        if match:
+                            username = match.group(1)
+                            if username and username not in usernames_found:
+                                # Filter out non-usernames
+                                if not any(x in username.lower() for x in ['tag', 'music', 'search', 'foryou', 'following']):
+                                    usernames_found.add(username)
+                                    logger.info(f"Found TikTok username: @{username}")
+                except Exception as e:
+                    continue
+            
+            logger.info(f"Collected {len(usernames_found)} unique TikTok usernames")
+            
+            # Scrape each profile
+            for username in list(usernames_found)[:max_profiles]:
+                profile_data = await self.scrape_profile(username)
+                if profile_data:
+                    profile_data['source'] = 'hashtag'
+                    results.append(profile_data)
+                
+                await self.human_delay(3, 6)
+            
+        except Exception as e:
+            logger.error(f"Error scraping TikTok hashtag #{hashtag}: {str(e)}")
+        
+        return results
+    
+    async def scrape_search(self, keyword: str, max_profiles: int = 20) -> List[Dict]:
+        """Scrape profiles from TikTok search results"""
+        results = []
+        
+        try:
+            url = f"https://www.tiktok.com/search/user?q={keyword}"
+            
+            logger.info(f"Searching TikTok for: {keyword}")
+            await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+            await self.human_delay(4, 6)
+            
+            # Scroll to load more
+            await self.human_scroll(self.page, times=3)
+            
+            # Extract usernames
+            usernames_found = set()
+            links = await self.page.query_selector_all('a[href*="/@"]')
+            
+            for link in links:
+                if len(usernames_found) >= max_profiles:
+                    break
+                    
+                try:
+                    href = await link.get_attribute('href')
+                    if href and '/@' in href:
+                        match = re.search(r'/@([^/?]+)', href)
+                        if match:
+                            username = match.group(1)
+                            if username and username not in usernames_found:
+                                usernames_found.add(username)
+                except:
+                    continue
+            
+            # Scrape profiles
+            for username in list(usernames_found)[:max_profiles]:
+                profile_data = await self.scrape_profile(username)
+                if profile_data:
+                    profile_data['source'] = 'search'
+                    results.append(profile_data)
+                
+                await self.human_delay(3, 6)
+            
+        except Exception as e:
+            logger.error(f"Error searching TikTok for {keyword}: {str(e)}")
+        
+        return results
+    
+    async def close(self):
+        """Close browser"""
+        if self.browser:
+            await self.browser.close()
 
 # ===================== HUMAN-LIKE SCRAPER CLASS =====================
 
@@ -672,66 +992,132 @@ async def health_check():
     return {"status": "healthy", "service": "scraper", "version": "2.0.0"}
 
 @app.post("/scrape", response_model=ScrapeResponse)
-async def scrape_instagram(request: ScrapeRequest):
-    """Main scraping endpoint with human-like behavior"""
-    logger.info(f"Received scrape request: {len(request.keywords)} keywords, {len(request.hashtags)} hashtags")
+async def scrape_profiles(request: ScrapeRequest):
+    """Main scraping endpoint - supports Instagram and TikTok"""
+    platform = request.platform.lower()
+    logger.info(f"Received scrape request for {platform}: {len(request.keywords)} keywords, {len(request.hashtags)} hashtags")
     
-    accounts = [acc.model_dump() for acc in request.accounts]
     proxies = [proxy.model_dump() for proxy in request.proxies]
-    
-    scraper = HumanLikeScraper(accounts, proxies)
     all_leads = []
     errors = []
     
+    if platform == "tiktok":
+        # TikTok scraping
+        scraper = TikTokScraper(proxies)
+        
+        try:
+            proxy = scraper.get_proxy()
+            if proxy:
+                logger.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
+            await scraper.setup_browser(proxy=proxy)
+            
+            # Scrape hashtags
+            for hashtag in request.hashtags:
+                try:
+                    leads = await scraper.scrape_hashtag(hashtag, max_profiles=request.max_profiles)
+                    all_leads.extend(leads)
+                    logger.info(f"TikTok hashtag #{hashtag}: found {len(leads)} leads")
+                except Exception as e:
+                    error_msg = f"Error scraping TikTok hashtag {hashtag}: {str(e)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+            
+            # Scrape keywords (search)
+            for keyword in request.keywords:
+                try:
+                    leads = await scraper.scrape_search(keyword, max_profiles=request.max_profiles)
+                    all_leads.extend(leads)
+                    logger.info(f"TikTok search '{keyword}': found {len(leads)} leads")
+                except Exception as e:
+                    error_msg = f"Error searching TikTok for {keyword}: {str(e)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+            
+        finally:
+            await scraper.close()
+    
+    else:
+        # Instagram scraping (default)
+        accounts = [acc.model_dump() for acc in request.accounts]
+        scraper = HumanLikeScraper(accounts, proxies)
+        
+        try:
+            proxy = scraper.get_next_proxy() if proxies else None
+            if proxy:
+                logger.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
+            await scraper.setup_browser(proxy=proxy)
+            
+            # Login if account available
+            account = scraper.get_next_account()
+            if account:
+                logged_in = await scraper.login_instagram(account)
+                if not logged_in:
+                    logger.warning("Could not login, some features may be limited")
+            
+            # Scrape hashtags
+            for hashtag in request.hashtags:
+                try:
+                    leads = await scraper.scrape_hashtag(hashtag, max_profiles=request.max_profiles)
+                    all_leads.extend(leads)
+                    logger.info(f"Instagram hashtag #{hashtag}: found {len(leads)} leads")
+                except Exception as e:
+                    error_msg = f"Error scraping hashtag {hashtag}: {str(e)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+            
+        finally:
+            await scraper.close()
+    
+    # Remove duplicates
+    seen_usernames = set()
+    unique_leads = []
+    for lead in all_leads:
+        if lead['username'] not in seen_usernames:
+            seen_usernames.add(lead['username'])
+            lead['platform'] = platform
+            unique_leads.append(LeadResult(**lead))
+    
+    unique_leads = unique_leads[:request.max_profiles]
+    
+    return ScrapeResponse(
+        success=len(unique_leads) > 0,
+        leads=unique_leads,
+        total_found=len(unique_leads),
+        platform=platform,
+        errors=errors
+    )
+
+@app.get("/scrape/profile/{username}")
+async def scrape_single_profile(username: str, platform: str = "instagram"):
+    """Scrape a single profile by username"""
+    
+    if platform.lower() == "tiktok":
+        scraper = TikTokScraper([])
+    else:
+        scraper = HumanLikeScraper([], [])
+    
     try:
-        # Setup browser with proxy if available
-        proxy = scraper.get_next_proxy() if proxies else None
-        if proxy:
-            logger.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
-        await scraper.setup_browser(proxy=proxy)
+        await scraper.setup_browser()
+        result = await scraper.scrape_profile(username)
         
-        # Login if account available
-        account = scraper.get_next_account()
-        if account:
-            logged_in = await scraper.login_instagram(account)
-            if not logged_in:
-                logger.warning("Could not login, some features may be limited")
-        
-        # Scrape hashtags
-        for hashtag in request.hashtags:
-            try:
-                leads = await scraper.scrape_hashtag(hashtag, max_profiles=request.max_profiles)
-                all_leads.extend(leads)
-                logger.info(f"Hashtag #{hashtag}: found {len(leads)} leads")
-            except Exception as e:
-                error_msg = f"Error scraping hashtag {hashtag}: {str(e)}"
-                logger.error(error_msg)
-                errors.append(error_msg)
-        
-        # Remove duplicates
-        seen_usernames = set()
-        unique_leads = []
-        for lead in all_leads:
-            if lead['username'] not in seen_usernames:
-                seen_usernames.add(lead['username'])
-                unique_leads.append(LeadResult(**lead))
-        
-        unique_leads = unique_leads[:request.max_profiles]
-        
-        return ScrapeResponse(
-            success=len(unique_leads) > 0,
-            leads=unique_leads,
-            total_found=len(unique_leads),
-            errors=errors
-        )
-        
+        if result:
+            result['platform'] = platform.lower()
+            return {
+                "success": True,
+                "profile": LeadResult(**result, source="direct")
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"Could not fetch {platform} profile for @{username}"
+            }
     finally:
         await scraper.close()
 
-@app.get("/scrape/profile/{username}")
-async def scrape_single_profile(username: str):
-    """Scrape a single profile by username"""
-    scraper = HumanLikeScraper([], [])
+@app.get("/scrape/tiktok/profile/{username}")
+async def scrape_tiktok_profile(username: str):
+    """Scrape a single TikTok profile"""
+    scraper = TikTokScraper([])
     
     try:
         await scraper.setup_browser()
@@ -740,12 +1126,12 @@ async def scrape_single_profile(username: str):
         if result:
             return {
                 "success": True,
-                "profile": LeadResult(**result, source="direct")
+                "profile": LeadResult(**result, source="direct", platform="tiktok")
             }
         else:
             return {
                 "success": False,
-                "error": f"Could not fetch profile for @{username}"
+                "error": f"Could not fetch TikTok profile for @{username}"
             }
     finally:
         await scraper.close()
