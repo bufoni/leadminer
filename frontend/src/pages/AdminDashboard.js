@@ -155,7 +155,7 @@ const AdminDashboard = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">Carregando...</div>
         </div>
       </DashboardLayout>
     );
@@ -170,73 +170,73 @@ const AdminDashboard = () => {
               <Shield className="h-5 w-5 text-red-400" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold">Admin Dashboard</h1>
-              <p className="text-gray-400">Painel de administração do sistema</p>
+              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+              <p className="text-gray-600 dark:text-gray-400">Painel de administração do sistema</p>
             </div>
           </div>
         </div>
 
         {/* System Health Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <Card data-testid="admin-stat-total-users" className="bg-gray-900/50 border-white/5 p-4">
+          <Card data-testid="admin-stat-total-users" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
                 <Users className="h-4 w-4 text-blue-400" />
               </div>
-              <span className="text-xs text-gray-400">Total</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
             </div>
-            <div className="text-2xl font-bold">{adminStats?.total_users || 0}</div>
-            <div className="text-xs text-gray-400">Usuários</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{adminStats?.total_users || 0}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Usuários</div>
           </Card>
 
-          <Card data-testid="admin-stat-total-leads" className="bg-gray-900/50 border-white/5 p-4">
+          <Card data-testid="admin-stat-total-leads" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                 <TrendingUp className="h-4 w-4 text-emerald-400" />
               </div>
-              <span className="text-xs text-gray-400">Total</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
             </div>
-            <div className="text-2xl font-bold">{adminStats?.total_leads || 0}</div>
-            <div className="text-xs text-gray-400">Leads Gerados</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{adminStats?.total_leads || 0}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Leads Gerados</div>
           </Card>
 
-          <Card data-testid="admin-stat-total-searches" className="bg-gray-900/50 border-white/5 p-4">
+          <Card data-testid="admin-stat-total-searches" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
                 <Search className="h-4 w-4 text-violet-400" />
               </div>
-              <span className="text-xs text-gray-400">Total</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
             </div>
-            <div className="text-2xl font-bold">{adminStats?.total_searches || 0}</div>
-            <div className="text-xs text-gray-400">Buscas</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{adminStats?.total_searches || 0}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Buscas</div>
           </Card>
 
-          <Card data-testid="admin-stat-active-accounts" className="bg-gray-900/50 border-white/5 p-4">
+          <Card data-testid="admin-stat-active-accounts" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
                 <Activity className="h-4 w-4 text-amber-400" />
               </div>
-              <span className="text-xs text-gray-400">Ativos</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Ativos</span>
             </div>
-            <div className="text-2xl font-bold">{accounts.filter(a => a.status === 'active').length}</div>
-            <div className="text-xs text-gray-400">Contas IG</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{accounts.filter(a => a.status === 'active').length}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Contas IG</div>
           </Card>
 
-          <Card data-testid="admin-stat-active-proxies" className="bg-gray-900/50 border-white/5 p-4">
+          <Card data-testid="admin-stat-active-proxies" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 rounded-lg bg-fuchsia-500/10 flex items-center justify-center">
                 <Server className="h-4 w-4 text-fuchsia-400" />
               </div>
-              <span className="text-xs text-gray-400">Ativos</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Ativos</span>
             </div>
-            <div className="text-2xl font-bold">{proxies.filter(p => p.status === 'active').length}</div>
-            <div className="text-xs text-gray-400">Proxies</div>
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{proxies.filter(p => p.status === 'active').length}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">Proxies</div>
           </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Instagram Accounts Management */}
-          <Card className="bg-gray-900/50 border-white/5 p-6">
+          <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <Activity className="h-5 w-5 text-amber-400" />
@@ -246,14 +246,14 @@ const AdminDashboard = () => {
                 size="sm"
                 variant="ghost"
                 onClick={fetchAdminData}
-                className="text-gray-400 hover:text-white"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
 
             {/* Quick Add Form */}
-            <form onSubmit={addAccount} className="mb-4 p-3 bg-gray-950/50 rounded-lg border border-white/5">
+            <form onSubmit={addAccount} className="mb-4 p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5">
               <div className="flex gap-2">
                 <Input
                   data-testid="quick-add-username"
@@ -261,7 +261,7 @@ const AdminDashboard = () => {
                   onChange={(e) => setAccountUsername(e.target.value)}
                   placeholder="Username"
                   required
-                  className="bg-gray-900 border-gray-800 text-white text-sm flex-1"
+                  className="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white text-sm flex-1"
                 />
                 <Input
                   type="password"
@@ -270,7 +270,7 @@ const AdminDashboard = () => {
                   onChange={(e) => setAccountPassword(e.target.value)}
                   placeholder="Senha"
                   required
-                  className="bg-gray-900 border-gray-800 text-white text-sm flex-1"
+                  className="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white text-sm flex-1"
                 />
                 <Button
                   type="submit"
@@ -287,7 +287,7 @@ const AdminDashboard = () => {
             {/* Accounts List */}
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {accounts.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-amber-400" />
                   <p>Nenhuma conta cadastrada</p>
                 </div>
@@ -296,7 +296,7 @@ const AdminDashboard = () => {
                   <div
                     key={account.id}
                     data-testid={`admin-account-${account.id}`}
-                    className="flex items-center justify-between p-3 bg-gray-950/50 rounded-lg border border-white/5 hover:border-violet-500/30 transition-all"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5 hover:border-violet-500/30 transition-all"
                   >
                     <div className="flex items-center gap-3">
                       {account.status === 'active' ? (
@@ -333,7 +333,7 @@ const AdminDashboard = () => {
           </Card>
 
           {/* Proxies Management */}
-          <Card className="bg-gray-900/50 border-white/5 p-6">
+          <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold flex items-center gap-2">
                 <Server className="h-5 w-5 text-fuchsia-400" />
@@ -342,14 +342,14 @@ const AdminDashboard = () => {
             </div>
 
             {/* Add Proxy Form */}
-            <form onSubmit={addProxy} className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-950/50 rounded-lg border border-white/5">
+            <form onSubmit={addProxy} className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5">
               <Input
                 data-testid="admin-proxy-host-input"
                 value={proxyHost}
                 onChange={(e) => setProxyHost(e.target.value)}
                 placeholder="Host"
                 required
-                className="bg-gray-900 border-gray-700 text-white text-sm"
+                className="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
               />
               <Input
                 type="number"
@@ -358,14 +358,14 @@ const AdminDashboard = () => {
                 onChange={(e) => setProxyPort(e.target.value)}
                 placeholder="Porta"
                 required
-                className="bg-gray-900 border-gray-700 text-white text-sm"
+                className="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
               />
               <Input
                 data-testid="admin-proxy-username-input"
                 value={proxyUsername}
                 onChange={(e) => setProxyUsername(e.target.value)}
                 placeholder="User (opcional)"
-                className="bg-gray-900 border-gray-700 text-white text-sm"
+                className="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
               />
               <div className="flex gap-2">
                 <Input
@@ -374,7 +374,7 @@ const AdminDashboard = () => {
                   value={proxyPassword}
                   onChange={(e) => setProxyPassword(e.target.value)}
                   placeholder="Senha (opcional)"
-                  className="bg-gray-900 border-gray-700 text-white text-sm flex-1"
+                  className="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm flex-1"
                 />
                 <Button
                   type="submit"
@@ -391,7 +391,7 @@ const AdminDashboard = () => {
             {/* Proxies List */}
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {proxies.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <Server className="h-8 w-8 mx-auto mb-2 text-fuchsia-400 opacity-50" />
                   <p>Nenhum proxy cadastrado</p>
                 </div>
@@ -400,7 +400,7 @@ const AdminDashboard = () => {
                   <div
                     key={proxy.id}
                     data-testid={`admin-proxy-${proxy.id}`}
-                    className="flex items-center justify-between p-3 bg-gray-950/50 rounded-lg border border-white/5 hover:border-violet-500/30 transition-all"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5 hover:border-violet-500/30 transition-all"
                   >
                     <div className="flex items-center gap-3">
                       {proxy.status === 'active' ? (
@@ -410,7 +410,7 @@ const AdminDashboard = () => {
                       )}
                       <span className="font-medium text-sm">{proxy.host}:{proxy.port}</span>
                       {proxy.username && (
-                        <span className="text-xs text-gray-400">({proxy.username})</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">({proxy.username})</span>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -499,7 +499,7 @@ const AdminDashboard = () => {
 
         {/* Users List (if available) */}
         {users.length > 0 && (
-          <Card className="bg-gray-900/50 border-white/5 p-6">
+          <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
               <Users className="h-5 w-5 text-blue-400" />
               Usuários Registrados

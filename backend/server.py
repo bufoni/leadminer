@@ -1084,22 +1084,28 @@ async def upload_avatar(
     request: Request,
     current_user: User = Depends(get_current_user)
 ):
-    """Upload user avatar (base64)"""
+    """Upload user avatar (base64) or clear it (send avatar: null)."""
     try:
         data = await request.json()
-        avatar_data = data.get('avatar')
-        
-        if not avatar_data:
-            raise HTTPException(status_code=400, detail="No avatar data provided")
-        
+        avatar_data = data.get("avatar")
+        # Allow explicit null to remove avatar
+        if avatar_data is None or avatar_data == "":
+            await db.users.update_one(
+                {"id": current_user.id},
+                {"$set": {"avatar_url": None}}
+            )
+            return {"message": "Avatar removido.", "avatar_url": None}
+        if not isinstance(avatar_data, str):
+            raise HTTPException(status_code=400, detail="Avatar deve ser uma string (base64) ou null para remover.")
         # Store base64 image directly (for simplicity)
         # In production, upload to cloud storage (S3, Cloudinary, etc)
         await db.users.update_one(
             {"id": current_user.id},
             {"$set": {"avatar_url": avatar_data}}
         )
-        
-        return {"message": "Avatar updated successfully", "avatar_url": avatar_data}
+        return {"message": "Avatar atualizado com sucesso.", "avatar_url": avatar_data}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

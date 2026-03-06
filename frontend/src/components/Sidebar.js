@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
 import { LayoutDashboard, TrendingUp, Search, List, Users, Settings, LogOut, Plus, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
 
 const Sidebar = () => {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -25,29 +27,28 @@ const Sidebar = () => {
   };
 
   const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/analytics', label: 'Analytics', icon: TrendingUp },
-    { path: '/search', label: 'Nova Busca', icon: Plus },
-    { path: '/searches', label: 'Buscas', icon: List },
-    { path: '/leads', label: 'Leads', icon: Users },
-    { path: '/settings', label: 'Configurações', icon: Settings },
+    { path: '/dashboard', label: t('sidebar.dashboard'), labelKey: 'sidebar.dashboard', icon: LayoutDashboard },
+    { path: '/analytics', label: t('sidebar.analytics'), labelKey: 'sidebar.analytics', icon: TrendingUp },
+    { path: '/search', label: t('sidebar.newSearch'), labelKey: 'sidebar.newSearch', icon: Plus },
+    { path: '/searches', label: t('sidebar.searches'), labelKey: 'sidebar.searches', icon: List },
+    { path: '/leads', label: t('sidebar.leads'), labelKey: 'sidebar.leads', icon: Users },
+    { path: '/settings', label: t('sidebar.settings'), labelKey: 'sidebar.settings', icon: Settings },
   ];
 
-  // Admin menu items (only shown to admin users)
   const adminMenuItems = user?.role === 'admin' ? [
-    { path: '/admin', label: 'Admin', icon: Shield, isAdmin: true },
+    { path: '/admin', label: t('sidebar.admin'), labelKey: 'sidebar.admin', icon: Shield, isAdmin: true },
   ] : [];
 
   const isActive = (path) => location.pathname === path;
 
   return (
     <div 
-      className={`bg-gray-900/50 border-r border-white/5 h-screen fixed left-0 top-0 flex flex-col transition-all duration-300 ${
+      className={`bg-white dark:bg-gray-900/50 border-r border-gray-200 dark:border-white/5 h-screen fixed left-0 top-0 flex flex-col transition-all duration-300 ${
         collapsed ? 'w-20' : 'w-64'
       }`}
     >
       {/* Logo - click goes to home */}
-      <div className="p-4 border-b border-white/5 flex items-center justify-between gap-2">
+      <div className="p-4 border-b border-gray-200 dark:border-white/5 flex items-center justify-between gap-2">
         <Link
           to="/"
           className={`flex items-center min-w-0 ${collapsed ? 'justify-center flex-1' : 'gap-3'}`}
@@ -64,7 +65,7 @@ const Sidebar = () => {
           variant="ghost"
           size="sm"
           onClick={toggleSidebar}
-          className="text-gray-400 hover:text-white p-1"
+          className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-1"
           data-testid="sidebar-toggle"
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -74,7 +75,7 @@ const Sidebar = () => {
       {/* User Info - click goes to Settings > Perfil */}
       <Link
         to="/settings?tab=profile"
-        className="block p-4 border-b border-white/5 hover:bg-white/5 transition-colors"
+        className="block p-4 border-b border-gray-200 dark:border-white/5 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
         title="Ver perfil"
       >
         <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
@@ -93,8 +94,8 @@ const Sidebar = () => {
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-white truncate">{user?.name}</div>
-              <div className="text-xs text-gray-400 capitalize">{user?.plan}</div>
+              <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{user?.name}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user?.plan}</div>
             </div>
           )}
         </div>
@@ -112,7 +113,7 @@ const Sidebar = () => {
               className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                 isActive(item.path)
                   ? 'bg-violet-600 text-white'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
               } ${collapsed ? 'justify-center' : ''}`}
               title={collapsed ? item.label : ''}
             >
@@ -126,7 +127,7 @@ const Sidebar = () => {
         {adminMenuItems.length > 0 && (
           <>
             {!collapsed && (
-              <div className="text-xs text-gray-500 uppercase tracking-wide px-4 pt-4 pb-2">
+              <div className="text-xs text-gray-500 dark:text-gray-500 uppercase tracking-wide px-4 pt-4 pb-2">
                 Administração
               </div>
             )}
@@ -154,18 +155,18 @@ const Sidebar = () => {
       </nav>
 
       {/* Logout */}
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-gray-200 dark:border-white/5">
         <Button
           data-testid="sidebar-logout"
           onClick={handleLogout}
           variant="ghost"
-          className={`w-full justify-start text-gray-400 hover:text-white hover:bg-white/5 ${
+          className={`w-full justify-start text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 ${
             collapsed ? 'justify-center px-0' : ''
           }`}
           title={collapsed ? 'Sair' : ''}
         >
           <LogOut className={`h-5 w-5 ${collapsed ? '' : 'mr-3'}`} />
-          {!collapsed && 'Sair'}
+          {!collapsed && t('sidebar.logout')}
         </Button>
       </div>
     </div>

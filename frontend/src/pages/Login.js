@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -9,6 +10,7 @@ import { Loader2 } from 'lucide-react';
 import api from '../lib/api';
 
 const Login = () => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,10 +25,10 @@ const Login = () => {
 
     try {
       await login(email, password);
-      toast.success('Login realizado com sucesso!');
+      toast.success(t('auth.login.success'));
       navigate('/dashboard');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao fazer login');
+      toast.error(error.response?.data?.detail || t('auth.login.error'));
     } finally {
       setLoading(false);
     }
@@ -38,13 +40,10 @@ const Login = () => {
       const redirectUrl = `${window.location.origin}/auth/google/callback`;
       const response = await api.post('/auth/google/session', { redirect_url: redirectUrl });
       
-      // Store session_id for callback
       sessionStorage.setItem('google_session_id', response.data.session_id);
-      
-      // Redirect to Google
       window.location.href = response.data.auth_url;
     } catch (error) {
-      toast.error('Erro ao iniciar login com Google');
+      toast.error(t('auth.login.errorGoogle'));
       setGoogleLoading(false);
     }
   };
@@ -55,21 +54,18 @@ const Login = () => {
       const redirectUrl = `${window.location.origin}/auth/facebook/callback`;
       const response = await api.post('/auth/facebook/session', { redirect_url: redirectUrl });
       
-      // Store session_id (state) for callback
       sessionStorage.setItem('facebook_session_id', response.data.session_id);
-      
-      // Redirect to Facebook
       window.location.href = response.data.auth_url;
     } catch (error) {
-      toast.error('Erro ao iniciar login com Facebook');
+      toast.error(t('auth.login.errorFacebook'));
       setFacebookLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#030712] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#030712] px-4">
       <div className="w-full max-w-md">
-        <div className="bg-gray-900/50 border border-white/5 rounded-lg p-8 backdrop-blur-sm">
+        <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-white/5 rounded-lg p-8 shadow-sm dark:shadow-none backdrop-blur-sm">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <img 
@@ -79,12 +75,10 @@ const Login = () => {
               />
             </div>
             <h1 className="text-3xl font-bold text-gradient mb-2">LeadMiner</h1>
-            <p className="text-gray-400">Entre na sua conta</p>
+            <p className="text-gray-600 dark:text-gray-400">{t('auth.login.title')}</p>
           </div>
 
-          {/* Social Login Buttons */}
           <div className="space-y-3 mb-6">
-            {/* Google Login */}
             <Button
               type="button"
               data-testid="google-login-button"
@@ -102,10 +96,9 @@ const Login = () => {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
               )}
-              Continuar com Google
+              {t('auth.login.continueGoogle')}
             </Button>
 
-            {/* Facebook Login */}
             <Button
               type="button"
               data-testid="facebook-login-button"
@@ -120,7 +113,7 @@ const Login = () => {
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
               )}
-              Continuar com Facebook
+              {t('auth.login.continueFacebook')}
             </Button>
           </div>
 
@@ -129,13 +122,13 @@ const Login = () => {
               <div className="w-full border-t border-gray-700"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-900/50 text-gray-400">Ou continue com email</span>
+              <span className="px-2 bg-gray-900/50 text-gray-400">{t('auth.login.continueWithEmail')}</span>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('auth.login.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -148,7 +141,7 @@ const Login = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password">{t('auth.login.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -169,18 +162,18 @@ const Login = () => {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Entrando...
+                  {t('auth.login.submitting')}
                 </>
               ) : (
-                'Entrar'
+                t('auth.login.submit')
               )}
             </Button>
           </form>
 
           <div className="mt-6 text-center text-sm text-gray-400">
-            Não tem uma conta?{' '}
+            {t('auth.login.noAccount')}{' '}
             <Link to="/register" className="text-violet-400 hover:text-violet-300">
-              Cadastre-se
+              {t('auth.login.signUp')}
             </Link>
           </div>
         </div>

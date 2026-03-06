@@ -60,7 +60,7 @@ const Dashboard = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">Carregando...</div>
         </div>
       </DashboardLayout>
     );
@@ -70,50 +70,50 @@ const Dashboard = () => {
     <DashboardLayout>
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
-          <p className="text-gray-400">Bem-vindo de volta, {user?.name}!</p>
+          <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400">Bem-vindo de volta, {user?.name}!</p>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card data-testid="stat-total-leads" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="stat-total-leads" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
                 <Users className="h-5 w-5 text-violet-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">{stats?.total_leads || 0}</div>
-            <div className="text-sm text-gray-400">Total de Leads</div>
+            <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_leads || 0}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Total de Leads</div>
           </Card>
 
-          <Card data-testid="stat-leads-used" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="stat-leads-used" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
                 <TrendingUp className="h-5 w-5 text-blue-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">{stats?.leads_used || 0}/{stats?.leads_limit || 0}</div>
-            <div className="text-sm text-gray-400">Leads Usados</div>
+            <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.leads_used || 0}/{stats?.leads_limit || 0}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Leads Usados</div>
           </Card>
 
-          <Card data-testid="stat-total-searches" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="stat-total-searches" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                 <Search className="h-5 w-5 text-emerald-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">{stats?.total_searches || 0}</div>
-            <div className="text-sm text-gray-400">Buscas Realizadas</div>
+            <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_searches || 0}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Buscas Realizadas</div>
           </Card>
 
-          <Card data-testid="stat-current-plan" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="stat-current-plan" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-fuchsia-500/10 flex items-center justify-center">
                 <Package className="h-5 w-5 text-fuchsia-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1 capitalize">{stats?.plan || 'Trial'}</div>
-            <div className="text-sm text-gray-400">Plano Atual</div>
+            <div className="text-3xl font-bold mb-1 capitalize text-gray-900 dark:text-white">{stats?.plan || 'Trial'}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Plano Atual</div>
           </Card>
         </div>
 
@@ -126,19 +126,19 @@ const Dashboard = () => {
             </Button>
           </Link>
           <Link to="/leads">
-            <Button data-testid="quick-action-view-leads" variant="outline" className="w-full border-white/10 text-white hover:bg-white/5 h-12">
+            <Button data-testid="quick-action-view-leads" variant="outline" className="w-full border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 h-12">
               <Users className="mr-2 h-4 w-4" />
               Ver Leads
             </Button>
           </Link>
           <Link to="/analytics">
-            <Button data-testid="quick-action-analytics" variant="outline" className="w-full border-white/10 text-white hover:bg-white/5 h-12">
+            <Button data-testid="quick-action-analytics" variant="outline" className="w-full border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 h-12">
               <TrendingUp className="mr-2 h-4 w-4" />
               Analytics
             </Button>
           </Link>
           <Link to="/settings">
-            <Button data-testid="quick-action-settings" variant="outline" className="w-full border-white/10 text-white hover:bg-white/5 h-12">
+            <Button data-testid="quick-action-settings" variant="outline" className="w-full border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 h-12">
               <Package className="mr-2 h-4 w-4" />
               Configurações
             </Button>
@@ -146,42 +146,42 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Searches */}
-        <Card className="bg-gray-900/50 border-white/5 p-6">
-          <h2 className="text-xl font-semibold mb-4">Buscas Recentes</h2>
+        <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Buscas Recentes</h2>
           {searches.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">Nenhuma busca realizada ainda</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhuma busca realizada ainda</p>
           ) : (
             <div className="space-y-3">
               {searches.map((search) => (
                 <div
                   key={search.id}
                   data-testid={`search-item-${search.id}`}
-                  className="flex items-center justify-between p-4 bg-gray-950/50 rounded-lg border border-white/5 hover:border-violet-500/30 transition-all"
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5 hover:border-violet-500/30 transition-all"
                 >
                   <div className="flex-1">
-                    <div className="font-medium mb-1 flex items-center gap-2 flex-wrap">
+                    <div className="font-medium mb-1 flex items-center gap-2 flex-wrap text-gray-900 dark:text-white">
                       {search.keywords.join(', ') || 'Sem palavras-chave'}
                       {search.platform === 'tiktok' ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-white/10 text-gray-400">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-gray-300 dark:border-white/10 text-gray-500 dark:text-gray-400">
                           <PlatformLogo platform="tiktok" className="h-3 w-3" /> TikTok
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-white/10 text-gray-400">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-gray-300 dark:border-white/10 text-gray-500 dark:text-gray-400">
                           <PlatformLogo platform="instagram" className="h-3 w-3" /> Instagram
                         </span>
                       )}
                     </div>
-                    <div className="text-sm text-gray-400">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
                       {search.hashtags.length > 0 && `#${search.hashtags.join(' #')}`}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-400">{search.leads_found} leads</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{search.leads_found} leads</div>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(search.status)}`}>
                       {getStatusText(search.status)}
                     </span>
                     {search.status === 'running' && (
-                      <div className="text-sm text-gray-400">{search.progress}%</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{search.progress}%</div>
                     )}
                   </div>
                 </div>

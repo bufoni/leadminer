@@ -100,7 +100,7 @@ export default function NotificationDropdown() {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-full transition-colors"
+        className="relative p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors"
       >
         <Bell className="w-6 h-6" />
         {unreadCount > 0 && (
@@ -112,10 +112,10 @@ export default function NotificationDropdown() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-[#0f1629] rounded-xl shadow-2xl border border-gray-700 z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-[#0f1629] rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between bg-[#131b2e]">
-            <h3 className="font-semibold text-white">Notificações</h3>
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-[#131b2e]">
+            <h3 className="font-semibold text-gray-900 dark:text-white">Notificações</h3>
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
@@ -143,8 +143,8 @@ export default function NotificationDropdown() {
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`p-4 border-b border-gray-700/50 hover:bg-gray-800/50 transition-colors cursor-pointer ${
-                    !notification.read ? 'bg-purple-900/20' : ''
+                  className={`p-4 border-b border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
+                    !notification.read ? 'bg-purple-50 dark:bg-purple-900/20' : ''
                   }`}
                   onClick={() => !notification.read && markAsRead(notification.id)}
                 >
@@ -152,14 +152,14 @@ export default function NotificationDropdown() {
                     <span className="text-2xl">{getNotificationIcon(notification.type)}</span>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <h4 className={`font-medium ${!notification.read ? 'text-white' : 'text-gray-300'}`}>
+                        <h4 className={`font-medium ${!notification.read ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>
                           {notification.title}
                         </h4>
                         {!notification.read && (
                           <span className="w-2 h-2 bg-purple-500 rounded-full flex-shrink-0 animate-pulse"></span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-400 mt-1 line-clamp-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
                         {notification.message}
                       </p>
                       <div className="flex items-center justify-between mt-2">
@@ -186,8 +186,8 @@ export default function NotificationDropdown() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-700 bg-[#131b2e] text-center">
-              <span className="text-sm text-gray-400">
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#131b2e] text-center">
+              <span className="text-sm text-gray-500 dark:text-gray-400">
                 {notifications.length} notificação(ões)
               </span>
             </div>

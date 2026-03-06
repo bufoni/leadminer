@@ -104,9 +104,9 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#030712] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#030712] px-4">
       <div className="w-full max-w-md">
-        <div className="bg-gray-900/50 border border-white/5 rounded-lg p-8 backdrop-blur-sm">
+        <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-white/5 rounded-lg p-8 shadow-sm dark:shadow-none backdrop-blur-sm">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
               <img 
@@ -116,7 +116,7 @@ const Register = () => {
               />
             </div>
             <h1 className="text-3xl font-bold text-gradient mb-2">LeadMiner</h1>
-            <p className="text-gray-400">Crie sua conta gratuita</p>
+            <p className="text-gray-600 dark:text-gray-400">Crie sua conta gratuita</p>
           </div>
 
           {/* Social Login Buttons */}
@@ -166,7 +166,7 @@ const Register = () => {
               <div className="w-full border-t border-gray-700"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-900/50 text-gray-400">Ou continue com email</span>
+              <span className="px-2 bg-white dark:bg-gray-900/50 text-gray-500 dark:text-gray-400">Ou continue com email</span>
             </div>
           </div>
 
@@ -175,8 +175,8 @@ const Register = () => {
               <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-4 flex items-center gap-3">
                 <Gift className="h-5 w-5 text-violet-400 flex-shrink-0" />
                 <div className="text-sm">
-                  <div className="font-medium text-white">Indicação de {referrerName}</div>
-                  <div className="text-gray-400">Ganhe 20% de desconto na primeira compra!</div>
+                  <div className="font-medium text-gray-900 dark:text-white">Indicação de {referrerName}</div>
+                  <div className="text-gray-600 dark:text-gray-400">Ganhe 20% de desconto na primeira compra!</div>
                 </div>
               </div>
             )}
@@ -190,7 +190,7 @@ const Register = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="bg-gray-950/50 border-gray-800 text-white"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -203,7 +203,7 @@ const Register = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-gray-950/50 border-gray-800 text-white"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -218,7 +218,7 @@ const Register = () => {
                 required
                 minLength={6}
                 placeholder="Mínimo 6 caracteres"
-                className="bg-gray-950/50 border-gray-800 text-white"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -233,7 +233,7 @@ const Register = () => {
                 required
                 minLength={6}
                 placeholder="Repita a senha"
-                className="bg-gray-950/50 border-gray-800 text-white"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -254,7 +254,7 @@ const Register = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-400">
+          <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
             Já tem uma conta?{' '}
             <Link to="/login" className="text-violet-400 hover:text-violet-300">
               Entrar

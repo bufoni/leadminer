@@ -53,7 +53,7 @@ const SearchesPage = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">Carregando...</div>
         </div>
       </DashboardLayout>
     );
@@ -64,8 +64,8 @@ const SearchesPage = () => {
       <div className="p-8">
         <div className="mb-8 flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Buscas</h1>
-            <p className="text-gray-400">Acompanhe o status de todas as suas buscas</p>
+            <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Buscas</h1>
+            <p className="text-gray-600 dark:text-gray-400">Acompanhe o status de todas as suas buscas</p>
           </div>
           <div className="flex gap-2">
             <Button
@@ -73,7 +73,7 @@ const SearchesPage = () => {
               size="sm"
               data-testid="refresh-button"
               onClick={fetchSearches}
-              className="text-gray-400 hover:text-white"
+              className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -86,9 +86,9 @@ const SearchesPage = () => {
         </div>
 
         {searches.length === 0 ? (
-          <Card className="bg-gray-900/50 border-white/5 p-12">
+          <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-12">
             <div className="text-center">
-              <p className="text-gray-400 mb-4">Nenhuma busca realizada ainda</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">Nenhuma busca realizada ainda</p>
               <Link to="/search">
                 <Button className="bg-violet-600 hover:bg-violet-700 text-white">
                   Criar Primeira Busca
@@ -102,7 +102,7 @@ const SearchesPage = () => {
               <Card
                 key={search.id}
                 data-testid={`search-card-${search.id}`}
-                className="bg-gray-900/50 border-white/5 p-6 hover:border-violet-500/30 transition-all"
+                className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6 hover:border-violet-500/30 transition-all"
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex-1">
@@ -120,22 +120,22 @@ const SearchesPage = () => {
                         {getStatusText(search.status)}
                       </span>
                       {search.platform === 'tiktok' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
                           <PlatformLogo platform="tiktok" className="h-3.5 w-3.5" /> TikTok
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
                           <PlatformLogo platform="instagram" className="h-3.5 w-3.5" /> Instagram
                         </span>
                       )}
                     </div>
                     {search.hashtags.length > 0 && (
-                      <p className="text-sm text-gray-400 mb-1">#{search.hashtags.join(' #')}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">#{search.hashtags.join(' #')}</p>
                     )}
                     {search.location && (
-                      <p className="text-sm text-gray-400 mb-1">Localização: {search.location}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Localização: {search.location}</p>
                     )}
-                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
+                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
                       <span>{search.leads_found} leads encontrados</span>
                       <span>
                         {new Date(search.created_at).toLocaleDateString('pt-BR', {
@@ -152,7 +152,7 @@ const SearchesPage = () => {
                   <div className="flex items-center gap-4">
                     {search.status === 'running' && (
                       <div className="w-32">
-                        <div className="text-sm text-gray-400 mb-1">{search.progress}%</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{search.progress}%</div>
                         <div className="w-full bg-gray-800 rounded-full h-2">
                           <div
                             className="bg-violet-600 h-2 rounded-full transition-all duration-500"

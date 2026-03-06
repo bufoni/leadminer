@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { Toaster } from './components/ui/sonner';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
@@ -23,8 +24,8 @@ const PrivateRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-        <div className="text-white">Carregando...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-[#030712] flex items-center justify-center">
+        <div className="text-gray-900 dark:text-white">Carregando...</div>
       </div>
     );
   }
@@ -37,8 +38,8 @@ const PublicRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030712] flex items-center justify-center">
-        <div className="text-white">Carregando...</div>
+      <div className="min-h-screen bg-gray-50 dark:bg-[#030712] flex items-center justify-center">
+        <div className="text-gray-900 dark:text-white">Carregando...</div>
       </div>
     );
   }
@@ -95,10 +96,22 @@ const PaymentSuccessHandler = () => {
   return <Dashboard />;
 };
 
+function AppToaster() {
+  const { theme } = useTheme();
+  return (
+    <Toaster
+      position="top-right"
+      theme={theme}
+      offset={{ top: "5rem" }}
+    />
+  );
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route
@@ -182,9 +195,10 @@ function App() {
             }
           />
         </Routes>
-        <Toaster position="top-right" theme="dark" />
+        <AppToaster />
       </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

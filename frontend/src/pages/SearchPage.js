@@ -86,23 +86,23 @@ const SearchPage = () => {
     <DashboardLayout>
       <div className="p-8 max-w-3xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Nova Busca</h1>
-          <p className="text-gray-400">Configure os parâmetros para encontrar leads no Instagram ou TikTok</p>
+          <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Nova Busca</h1>
+          <p className="text-gray-600 dark:text-gray-400">Configure os parâmetros para encontrar leads no Instagram ou TikTok</p>
         </div>
 
         {/* Plan Info */}
-        <Card className="bg-gray-900/50 border-white/5 p-4 mb-6">
+        <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-4 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm text-gray-400">Leads disponíveis este mês</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Leads disponíveis este mês</div>
               <div className="text-2xl font-bold text-emerald-400">{leadsRemaining}</div>
             </div>
             <div className="text-center">
-              <div className="text-sm text-gray-400">Usados / Limite</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Usados / Limite</div>
               <div className="text-lg font-semibold">{user?.leads_used || 0} / {user?.leads_limit || 0}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-gray-400">Plano atual</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Plano atual</div>
               <div className="text-lg font-semibold capitalize">{user?.plan}</div>
             </div>
           </div>
@@ -117,7 +117,7 @@ const SearchPage = () => {
         </Card>
 
         {/* Search Form */}
-        <Card className="bg-gray-900/50 border-white/5 p-6">
+        <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Platform */}
             <div className="space-y-3">
@@ -130,7 +130,7 @@ const SearchPage = () => {
                   className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-all ${
                     platform === 'instagram'
                       ? 'border-violet-500 bg-violet-500/20 text-violet-300'
-                      : 'border-white/10 bg-gray-950/50 text-gray-400 hover:border-white/20'
+                      : 'border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-gray-950/50 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-white/20'
                   }`}
                 >
                   <PlatformLogo platform="instagram" className="h-6 w-6 text-white" />
@@ -143,7 +143,7 @@ const SearchPage = () => {
                   className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-all ${
                     platform === 'tiktok'
                       ? 'border-violet-500 bg-violet-500/20 text-violet-300'
-                      : 'border-white/10 bg-gray-950/50 text-gray-400 hover:border-white/20'
+                      : 'border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-gray-950/50 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-white/20'
                   }`}
                 >
                   <PlatformLogo platform="tiktok" className="h-6 w-6 text-white" />
@@ -274,13 +274,13 @@ const SearchPage = () => {
                       const val = parseInt(e.target.value) || 1;
                       setMaxLeads(Math.min(Math.max(val, 1), Math.min(leadsRemaining, 50)));
                     }}
-                    className="bg-gray-950/50 border-gray-800 text-white text-center"
+                    className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white text-center"
                     data-testid="max-leads-input"
                     disabled={leadsRemaining === 0}
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 Máximo disponível: {Math.min(leadsRemaining, 50)} leads por busca
               </p>
             </div>
