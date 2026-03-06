@@ -8,12 +8,10 @@ import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
-import { ArrowLeft, Plus, Trash2, Check, Copy, Gift, Users as UsersIcon } from 'lucide-react';
+import { Check, Copy, Gift, Users as UsersIcon } from 'lucide-react';
 
 const SettingsPage = () => {
   const { user, updateUser } = useAuth();
-  const [accounts, setAccounts] = useState([]);
-  const [proxies, setProxies] = useState([]);
   const [plans, setPlans] = useState({});
   const [referralStats, setReferralStats] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -21,114 +19,25 @@ const SettingsPage = () => {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Account form
-  const [accountUsername, setAccountUsername] = useState('');
-  const [accountPassword, setAccountPassword] = useState('');
-  const [addingAccount, setAddingAccount] = useState(false);
-
-  // Proxy form
-  const [proxyHost, setProxyHost] = useState('');
-  const [proxyPort, setProxyPort] = useState('');
-  const [proxyUsername, setProxyUsername] = useState('');
-  const [proxyPassword, setProxyPassword] = useState('');
-  const [addingProxy, setAddingProxy] = useState(false);
-
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
     try {
-      const requests = [
+      const [plansRes, referralRes] = await Promise.all([
         api.get('/plans'),
         api.get('/referrals/my-code')
-      ];
+      ]);
+      setPlans(plansRes.data);
+      setReferralStats(referralRes.data);
 
-      // Only fetch accounts/proxies if admin
-      if (user?.role === 'admin') {
-        requests.push(api.get('/scraping-accounts'));
-        requests.push(api.get('/proxies'));
-      }
-
-      const results = await Promise.all(requests);
-      
-      setPlans(results[0].data);
-      setReferralStats(results[1].data);
-      
-      if (user?.role === 'admin') {
-        setAccounts(results[2].data);
-        setProxies(results[3].data);
-      }
-
-      // Fetch transactions
       const txResponse = await api.get('/payments/transactions');
       setTransactions(txResponse.data || []);
     } catch (error) {
       toast.error('Erro ao carregar dados');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const addAccount = async (e) => {
-    e.preventDefault();
-    setAddingAccount(true);
-    try {
-      await api.post('/scraping-accounts', {
-        username: accountUsername,
-        password: accountPassword
-      });
-      toast.success('Conta adicionada');
-      setAccountUsername('');
-      setAccountPassword('');
-      fetchData();
-    } catch (error) {
-      toast.error('Erro ao adicionar conta');
-    } finally {
-      setAddingAccount(false);
-    }
-  };
-
-  const deleteAccount = async (id) => {
-    try {
-      await api.delete(`/scraping-accounts/${id}`);
-      toast.success('Conta removida');
-      fetchData();
-    } catch (error) {
-      toast.error('Erro ao remover conta');
-    }
-  };
-
-  const addProxy = async (e) => {
-    e.preventDefault();
-    setAddingProxy(true);
-    try {
-      await api.post('/proxies', {
-        host: proxyHost,
-        port: parseInt(proxyPort),
-        username: proxyUsername || null,
-        password: proxyPassword || null
-      });
-      toast.success('Proxy adicionado');
-      setProxyHost('');
-      setProxyPort('');
-      setProxyUsername('');
-      setProxyPassword('');
-      fetchData();
-    } catch (error) {
-      toast.error('Erro ao adicionar proxy');
-    } finally {
-      setAddingProxy(false);
-    }
-  };
-
-  const deleteProxy = async (id) => {
-    try {
-      await api.delete(`/proxies/${id}`);
-      toast.success('Proxy removido');
-      fetchData();
-    } catch (error) {
-      toast.error('Erro ao remover proxy');
     }
   };
 
@@ -212,7 +121,7 @@ const SettingsPage = () => {
       <div className="p-8 max-w-5xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Configurações</h1>
-          <p className="text-gray-400">Gerencie suas contas, proxies e plano</p>
+          <p className="text-gray-400">Gerencie seu plano, perfil e histórico</p>
         </div>
 
         <Tabs defaultValue="plan" className="space-y-6">
@@ -221,12 +130,6 @@ const SettingsPage = () => {
             <TabsTrigger data-testid="tab-referral" value="referral">Referral</TabsTrigger>
             <TabsTrigger data-testid="tab-profile" value="profile">Perfil</TabsTrigger>
             <TabsTrigger data-testid="tab-billing" value="billing">Histórico</TabsTrigger>
-            {user?.role === 'admin' && (
-              <>
-                <TabsTrigger data-testid="tab-accounts" value="accounts">Contas Instagram</TabsTrigger>
-                <TabsTrigger data-testid="tab-proxies" value="proxies">Proxies</TabsTrigger>
-              </>
-            )}
           </TabsList>
 
           {/* Plan Tab */}
@@ -506,196 +409,7 @@ const SettingsPage = () => {
                 </div>
               )}
             </Card>
-          </TabsContent>\n\n          {/* Accounts Tab - Admin Only */}
-          {user?.role === 'admin' && (
-          <TabsContent value="accounts">
-            <Card className="bg-gray-900/50 border-white/5 p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">Adicionar Conta do Instagram</h2>
-              <form onSubmit={addAccount} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Username</Label>
-                    <Input
-                      data-testid="account-username-input"
-                      value={accountUsername}
-                      onChange={(e) => setAccountUsername(e.target.value)}
-                      placeholder="@username"
-                      required
-                      className="bg-gray-950/50 border-gray-800 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Senha</Label>
-                    <Input
-                      type="password"
-                      data-testid="account-password-input"
-                      value={accountPassword}
-                      onChange={(e) => setAccountPassword(e.target.value)}
-                      placeholder="Senha"
-                      required
-                      className="bg-gray-950/50 border-gray-800 text-white"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  data-testid="add-account-button"
-                  disabled={addingAccount}
-                  className="bg-violet-600 hover:bg-violet-700 text-white"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Adicionar Conta
-                </Button>
-              </form>
-            </Card>
-
-            <Card className="bg-gray-900/50 border-white/5 p-6">
-              <h2 className="text-xl font-semibold mb-4">Contas Cadastradas</h2>
-              {accounts.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">Nenhuma conta cadastrada</p>
-              ) : (
-                <div className="space-y-2">
-                  {accounts.map((account) => (
-                    <div
-                      key={account.id}
-                      data-testid={`account-item-${account.id}`}
-                      className="flex items-center justify-between p-3 bg-gray-950/50 rounded-lg border border-white/5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium">@{account.username}</span>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            account.status === 'active'
-                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                              : 'text-red-400 bg-red-500/10 border-red-500/20'
-                          }`}
-                        >
-                          {account.status}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`delete-account-${account.id}`}
-                        onClick={() => deleteAccount(account.id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
           </TabsContent>
-          )}
-
-          {/* Proxies Tab - Admin Only */}
-          {user?.role === 'admin' && (
-          <TabsContent value="proxies">
-            <Card className="bg-gray-900/50 border-white/5 p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">Adicionar Proxy</h2>
-              <form onSubmit={addProxy} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Host</Label>
-                    <Input
-                      data-testid="proxy-host-input"
-                      value={proxyHost}
-                      onChange={(e) => setProxyHost(e.target.value)}
-                      placeholder="123.123.123.123"
-                      required
-                      className="bg-gray-950/50 border-gray-800 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Porta</Label>
-                    <Input
-                      type="number"
-                      data-testid="proxy-port-input"
-                      value={proxyPort}
-                      onChange={(e) => setProxyPort(e.target.value)}
-                      placeholder="8080"
-                      required
-                      className="bg-gray-950/50 border-gray-800 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Username (opcional)</Label>
-                    <Input
-                      data-testid="proxy-username-input"
-                      value={proxyUsername}
-                      onChange={(e) => setProxyUsername(e.target.value)}
-                      placeholder="Username"
-                      className="bg-gray-950/50 border-gray-800 text-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Senha (opcional)</Label>
-                    <Input
-                      type="password"
-                      data-testid="proxy-password-input"
-                      value={proxyPassword}
-                      onChange={(e) => setProxyPassword(e.target.value)}
-                      placeholder="Senha"
-                      className="bg-gray-950/50 border-gray-800 text-white"
-                    />
-                  </div>
-                </div>
-                <Button
-                  type="submit"
-                  data-testid="add-proxy-button"
-                  disabled={addingProxy}
-                  className="bg-violet-600 hover:bg-violet-700 text-white"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Adicionar Proxy
-                </Button>
-              </form>
-            </Card>
-
-            <Card className="bg-gray-900/50 border-white/5 p-6">
-              <h2 className="text-xl font-semibold mb-4">Proxies Cadastrados</h2>
-              {proxies.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">Nenhum proxy cadastrado</p>
-              ) : (
-                <div className="space-y-2">
-                  {proxies.map((proxy) => (
-                    <div
-                      key={proxy.id}
-                      data-testid={`proxy-item-${proxy.id}`}
-                      className="flex items-center justify-between p-3 bg-gray-950/50 rounded-lg border border-white/5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium">
-                          {proxy.host}:{proxy.port}
-                        </span>
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                            proxy.status === 'active'
-                              ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-                              : 'text-red-400 bg-red-500/10 border-red-500/20'
-                          }`}
-                        >
-                          {proxy.status}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        data-testid={`delete-proxy-${proxy.id}`}
-                        onClick={() => deleteProxy(proxy.id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </TabsContent>
-          )}
         </Tabs>
       </div>
     </DashboardLayout>

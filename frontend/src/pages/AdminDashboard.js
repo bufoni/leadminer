@@ -38,6 +38,11 @@ const AdminDashboard = () => {
   const [accountUsername, setAccountUsername] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
   const [addingAccount, setAddingAccount] = useState(false);
+  const [proxyHost, setProxyHost] = useState('');
+  const [proxyPort, setProxyPort] = useState('');
+  const [proxyUsername, setProxyUsername] = useState('');
+  const [proxyPassword, setProxyPassword] = useState('');
+  const [addingProxy, setAddingProxy] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -105,6 +110,29 @@ const AdminDashboard = () => {
       fetchAdminData();
     } catch (error) {
       toast.error('Erro ao remover conta');
+    }
+  };
+
+  const addProxy = async (e) => {
+    e.preventDefault();
+    setAddingProxy(true);
+    try {
+      await api.post('/proxies', {
+        host: proxyHost,
+        port: parseInt(proxyPort),
+        username: proxyUsername || null,
+        password: proxyPassword || null
+      });
+      toast.success('Proxy adicionado');
+      setProxyHost('');
+      setProxyPort('');
+      setProxyUsername('');
+      setProxyPassword('');
+      fetchAdminData();
+    } catch (error) {
+      toast.error('Erro ao adicionar proxy');
+    } finally {
+      setAddingProxy(false);
     }
   };
 
@@ -313,13 +341,59 @@ const AdminDashboard = () => {
               </h2>
             </div>
 
+            {/* Add Proxy Form */}
+            <form onSubmit={addProxy} className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-950/50 rounded-lg border border-white/5">
+              <Input
+                data-testid="admin-proxy-host-input"
+                value={proxyHost}
+                onChange={(e) => setProxyHost(e.target.value)}
+                placeholder="Host"
+                required
+                className="bg-gray-900 border-gray-700 text-white text-sm"
+              />
+              <Input
+                type="number"
+                data-testid="admin-proxy-port-input"
+                value={proxyPort}
+                onChange={(e) => setProxyPort(e.target.value)}
+                placeholder="Porta"
+                required
+                className="bg-gray-900 border-gray-700 text-white text-sm"
+              />
+              <Input
+                data-testid="admin-proxy-username-input"
+                value={proxyUsername}
+                onChange={(e) => setProxyUsername(e.target.value)}
+                placeholder="User (opcional)"
+                className="bg-gray-900 border-gray-700 text-white text-sm"
+              />
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  data-testid="admin-proxy-password-input"
+                  value={proxyPassword}
+                  onChange={(e) => setProxyPassword(e.target.value)}
+                  placeholder="Senha (opcional)"
+                  className="bg-gray-900 border-gray-700 text-white text-sm flex-1"
+                />
+                <Button
+                  type="submit"
+                  data-testid="admin-add-proxy-button"
+                  disabled={addingProxy}
+                  size="sm"
+                  className="bg-violet-600 hover:bg-violet-700 text-white shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </form>
+
             {/* Proxies List */}
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {proxies.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">
                   <Server className="h-8 w-8 mx-auto mb-2 text-fuchsia-400 opacity-50" />
                   <p>Nenhum proxy cadastrado</p>
-                  <p className="text-sm mt-1">Configure em Configurações → Proxies</p>
                 </div>
               ) : (
                 proxies.map((proxy) => (
