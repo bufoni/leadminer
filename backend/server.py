@@ -121,6 +121,7 @@ class SearchCreate(BaseModel):
     hashtags: List[str] = []
     location: Optional[str] = None
     max_leads: int = 10  # Quantidade de leads desejada pelo usuário
+    platform: str = "instagram"  # "instagram" or "tiktok"
 
 class Search(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -130,6 +131,7 @@ class Search(BaseModel):
     hashtags: List[str]
     location: Optional[str] = None
     max_leads: int = 10  # Quantidade solicitada pelo usuário
+    platform: str = "instagram"  # "instagram" or "tiktok"
     status: str = "queued"
     progress: int = 0
     leads_found: int = 0
@@ -148,6 +150,10 @@ class Lead(BaseModel):
     phone: Optional[str] = None
     profile_url: str
     followers: Optional[int] = None
+    following: Optional[int] = None  # TikTok
+    likes: Optional[int] = None  # TikTok
+    videos: Optional[int] = None  # TikTok
+    platform: str = "instagram"  # "instagram" or "tiktok"
     status: str = "new"
     qualification: str = "morno"
     notes: str = ""
@@ -1212,8 +1218,8 @@ async def check_and_reset_monthly_leads(user_id: str):
         logging.info(f"Monthly leads reset for user {user_id}")
 
 
-async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[str], location: Optional[str], user_id: str, max_leads: int = 10):
-    """Call the scraper microservice to scrape Instagram"""
+async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[str], location: Optional[str], user_id: str, max_leads: int = 10, platform: str = "instagram"):
+    """Call the scraper microservice to scrape Instagram or TikTok"""
     try:
         await db.searches.update_one(
             {"id": search_id},
@@ -1247,7 +1253,8 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
             "hashtags": hashtags,
             "max_profiles": leads_to_fetch,
             "accounts": [{"username": a["username"], "password": a["password"], "status": a["status"]} for a in accounts],
-            "proxies": [{"host": p["host"], "port": p["port"], "username": p.get("username"), "password": p.get("password"), "status": p["status"]} for p in proxies]
+            "proxies": [{"host": p["host"], "port": p["port"], "username": p.get("username"), "password": p.get("password"), "status": p["status"]} for p in proxies],
+            "platform": platform  # "instagram" or "tiktok"
         }
         
         await db.searches.update_one({"id": search_id}, {"$set": {"progress": 30}})
@@ -1264,7 +1271,7 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
                 if response.status_code == 200:
                     result = response.json()
                     all_leads = result.get("leads", [])
-                    logging.info(f"Scraper service returned {len(all_leads)} leads")
+                    logging.info(f"Scraper service returned {len(all_leads)} {platform} leads")
                 else:
                     logging.error(f"Scraper service error: {response.status_code} - {response.text}")
                     # Fall back to local scraper if service unavailable
@@ -1272,8 +1279,12 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
                     
         except Exception as e:
             logging.warning(f"Scraper service error: {str(e)}. Falling back to local scraper.")
-            # Fallback: use local simple scraper
-            all_leads = await fallback_local_scraper(keywords, hashtags, leads_to_fetch)
+            # Fallback: use local simple scraper (Instagram only for now)
+            if platform == "instagram":
+                all_leads = await fallback_local_scraper(keywords, hashtags, leads_to_fetch)
+            else:
+                logging.error(f"No fallback available for {platform}")
+                all_leads = []
         
         await db.searches.update_one({"id": search_id}, {"$set": {"progress": 70}})
         
@@ -1286,6 +1297,12 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
             score, score_breakdown = calculate_lead_score(lead_data)
             qualification = get_qualification_from_score(score)
             
+            # Determine profile URL based on platform
+            if platform == "tiktok":
+                profile_url = lead_data.get('profile_url', f"https://tiktok.com/@{lead_data.get('username', '')}")
+            else:
+                profile_url = lead_data.get('profile_url', f"https://instagram.com/{lead_data.get('username', '')}")
+            
             lead = Lead(
                 search_id=search_id,
                 user_id=user_id,
@@ -1294,8 +1311,12 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
                 bio=lead_data.get('bio'),
                 email=lead_data.get('email'),
                 phone=lead_data.get('phone'),
-                profile_url=lead_data.get('profile_url', f"https://instagram.com/{lead_data.get('username', '')}"),
+                profile_url=profile_url,
                 followers=lead_data.get('followers'),
+                following=lead_data.get('following'),
+                likes=lead_data.get('likes'),
+                videos=lead_data.get('videos'),
+                platform=platform,
                 source=lead_data.get('source', 'hashtag'),
                 score=score,
                 score_breakdown=score_breakdown,
@@ -1306,7 +1327,7 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
             lead_dict["created_at"] = lead_dict["created_at"].isoformat()
             await db.leads.insert_one(lead_dict)
             
-            logging.info(f"Lead @{lead.username} scored: {score} ({qualification})")
+            logging.info(f"Lead @{lead.username} ({platform}) scored: {score} ({qualification})")
         
         # Update user's leads count
         await db.users.update_one(
@@ -1553,12 +1574,18 @@ async def create_search(
     if max_leads <= 0:
         raise HTTPException(status_code=400, detail="Quantidade de leads inválida.")
     
+    # Validate platform
+    platform = search_data.platform.lower()
+    if platform not in ["instagram", "tiktok"]:
+        platform = "instagram"
+    
     search = Search(
         user_id=current_user.id,
         keywords=search_data.keywords,
         hashtags=search_data.hashtags,
         location=search_data.location,
-        max_leads=max_leads
+        max_leads=max_leads,
+        platform=platform
     )
     
     search_dict = search.model_dump()
@@ -1572,7 +1599,8 @@ async def create_search(
         search_data.hashtags,
         search_data.location,
         current_user.id,
-        max_leads
+        max_leads,
+        platform
     )
     
     return search
