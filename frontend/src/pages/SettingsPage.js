@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
@@ -10,7 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { toast } from 'sonner';
 import { Check, Copy, Gift, Users as UsersIcon } from 'lucide-react';
 
+const VALID_TABS = ['profile', 'plan', 'billing', 'referral'];
+
 const SettingsPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const activeTab = VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'profile';
+
   const { user, updateUser } = useAuth();
   const [plans, setPlans] = useState({});
   const [referralStats, setReferralStats] = useState(null);
@@ -155,7 +162,7 @@ const SettingsPage = () => {
           <p className="text-gray-400">Gerencie seu plano, perfil e histórico</p>
         </div>
 
-        <Tabs defaultValue="profile" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v })} className="space-y-6">
           <TabsList className="bg-gray-900/50 border border-white/5">
             <TabsTrigger data-testid="tab-profile" value="profile">Perfil</TabsTrigger>
             <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>

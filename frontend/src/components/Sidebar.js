@@ -103,8 +103,12 @@ const Sidebar = () => {
         </Button>
       </div>
 
-      {/* User Info */}
-      <div className="p-4 border-b border-white/5">
+      {/* User Info - click goes to Settings > Perfil */}
+      <Link
+        to="/settings?tab=profile"
+        className="block p-4 border-b border-white/5 hover:bg-white/5 transition-colors"
+        title="Ver perfil"
+      >
         <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
           <div className="relative">
             {user?.avatar_url ? (
@@ -126,7 +130,7 @@ const Sidebar = () => {
             </div>
           )}
         </div>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
