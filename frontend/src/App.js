@@ -100,14 +100,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route
-            path="/"
-            element={
-              <PublicRoute>
-                <Landing />
-              </PublicRoute>
-            }
-          />
+          <Route path="/" element={<Landing />} />
           <Route
             path="/login"
             element={

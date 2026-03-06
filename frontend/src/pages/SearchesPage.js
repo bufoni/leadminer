@@ -5,7 +5,8 @@ import api from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, RefreshCw, Camera, Music2 } from 'lucide-react';
+import { ArrowLeft, Download, RefreshCw } from 'lucide-react';
+import PlatformLogo from '../components/PlatformLogo';
 
 const SearchesPage = () => {
   const [searches, setSearches] = useState([]);
@@ -119,12 +120,12 @@ const SearchesPage = () => {
                         {getStatusText(search.status)}
                       </span>
                       {search.platform === 'tiktok' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
-                          <Music2 className="h-3.5 w-3.5" /> TikTok
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                          <PlatformLogo platform="tiktok" className="h-3.5 w-3.5" /> TikTok
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
-                          <Camera className="h-3.5 w-3.5" /> Instagram
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                          <PlatformLogo platform="instagram" className="h-3.5 w-3.5" /> Instagram
                         </span>
                       )}
                     </div>

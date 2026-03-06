@@ -1,9 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
-import { ArrowRight, Search, Zap, Database, Shield, TrendingUp, Users } from 'lucide-react';
+import { ArrowRight, Search, Zap, Database, Shield, TrendingUp, Users, LayoutDashboard } from 'lucide-react';
 
 const Landing = () => {
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
   const plans = [
     { id: 'trial', name: 'Trial', price: 0, leads: 10, features: ['10 leads', 'Busca básica', 'Exportação CSV'] },
     { id: 'starter', name: 'Starter', price: 147, leads: 300, features: ['300 leads/mês', 'Busca avançada', 'Exportação CSV', 'Tags e status'] },
@@ -16,18 +20,31 @@ const Landing = () => {
       {/* Header */}
       <header className="border-b border-white/5 backdrop-blur-sm sticky top-0 z-50 bg-[#030712]/80">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="text-2xl font-bold text-gradient">LeadMiner</div>
+          <Link to="/" className="text-2xl font-bold text-gradient">
+            LeadMiner
+          </Link>
           <div className="flex gap-3">
-            <Link to="/login">
-              <Button variant="ghost" data-testid="header-login-button" className="text-gray-400 hover:text-white">
-                Login
-              </Button>
-            </Link>
-            <Link to="/register">
-              <Button data-testid="header-register-button" className="bg-violet-600 hover:bg-violet-700 text-white">
-                Começar Grátis
-              </Button>
-            </Link>
+            {isLoggedIn ? (
+              <Link to="/dashboard">
+                <Button data-testid="header-dashboard-button" className="bg-violet-600 hover:bg-violet-700 text-white inline-flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="ghost" data-testid="header-login-button" className="text-gray-400 hover:text-white">
+                    Login
+                  </Button>
+                </Link>
+                <Link to="/register">
+                  <Button data-testid="header-register-button" className="bg-violet-600 hover:bg-violet-700 text-white">
+                    Começar Grátis
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -47,12 +64,22 @@ const Landing = () => {
               Encontre leads qualificados para o seu negócio.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/register">
-                <Button data-testid="hero-cta-button" size="lg" className="bg-violet-600 hover:bg-violet-700 text-white group">
-                  Começar Gratuitamente
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
+              {isLoggedIn ? (
+                <Link to="/dashboard">
+                  <Button data-testid="hero-cta-button" size="lg" className="bg-violet-600 hover:bg-violet-700 text-white group inline-flex items-center gap-2">
+                    <LayoutDashboard className="h-5 w-5" />
+                    Ir para o Dashboard
+                    <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/register">
+                  <Button data-testid="hero-cta-button" size="lg" className="bg-violet-600 hover:bg-violet-700 text-white group">
+                    Começar Gratuitamente
+                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </div>

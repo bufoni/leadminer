@@ -1461,6 +1461,7 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         scrape_request = {
             "keywords": keywords,
             "hashtags": hashtags,
+            "location": location,
             "max_profiles": leads_to_fetch,
             "accounts": [{"username": a["username"], "password": a["password"], "status": a["status"]} for a in accounts],
             "proxies": [{"host": p["host"], "port": p["port"], "username": p.get("username"), "password": p.get("password"), "status": p["status"]} for p in proxies],

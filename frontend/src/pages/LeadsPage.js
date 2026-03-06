@@ -10,7 +10,8 @@ import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2, RefreshCw, TrendingUp, Camera, Music2 } from 'lucide-react';
+import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
+import PlatformLogo from '../components/PlatformLogo';
 import { ScoreWithTooltip, ScoreStatsSummary } from '../components/LeadScore';
 
 const LeadsPage = () => {
@@ -342,12 +343,12 @@ const LeadsPage = () => {
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold text-lg">{lead.name || lead.username}</h3>
                       {lead.platform === 'tiktok' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
-                          <Music2 className="h-3.5 w-3.5" /> TikTok
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                          <PlatformLogo platform="tiktok" className="h-3.5 w-3.5" /> TikTok
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
-                          <Camera className="h-3.5 w-3.5" /> Instagram
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                          <PlatformLogo platform="instagram" className="h-3.5 w-3.5" /> Instagram
                         </span>
                       )}
                       <span

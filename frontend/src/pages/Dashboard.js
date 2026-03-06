@@ -5,7 +5,8 @@ import api from '../lib/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
-import { Users, Search, TrendingUp, Package, Camera, Music2 } from 'lucide-react';
+import { Users, Search, TrendingUp, Package } from 'lucide-react';
+import PlatformLogo from '../components/PlatformLogo';
 import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
@@ -162,11 +163,11 @@ const Dashboard = () => {
                       {search.keywords.join(', ') || 'Sem palavras-chave'}
                       {search.platform === 'tiktok' ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-white/10 text-gray-400">
-                          <Music2 className="h-3 w-3" /> TikTok
+                          <PlatformLogo platform="tiktok" className="h-3 w-3" /> TikTok
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-white/10 text-gray-400">
-                          <Camera className="h-3 w-3" /> Instagram
+                          <PlatformLogo platform="instagram" className="h-3 w-3" /> Instagram
                         </span>
                       )}
                     </div>

@@ -67,7 +67,7 @@ const SettingsPage = () => {
       const referralLink = `${window.location.origin}/register?ref=${referralStats.code}`;
       try {
         navigator.clipboard.writeText(referralLink);
-        toast.success('Link de referral copiado!');
+        toast.success('Link de indicação copiado!');
       } catch (error) {
         // Fallback for browsers that don't support clipboard
         const textArea = document.createElement('textarea');
@@ -76,7 +76,7 @@ const SettingsPage = () => {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        toast.success('Link de referral copiado!');
+        toast.success('Link de indicação copiado!');
       }
     }
   };
@@ -167,7 +167,7 @@ const SettingsPage = () => {
             <TabsTrigger data-testid="tab-profile" value="profile">Perfil</TabsTrigger>
             <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>
             <TabsTrigger data-testid="tab-billing" value="billing">Histórico</TabsTrigger>
-            <TabsTrigger data-testid="tab-referral" value="referral">Referral</TabsTrigger>
+            <TabsTrigger data-testid="tab-referral" value="referral">Indicação</TabsTrigger>
           </TabsList>
 
           {/* Plan Tab */}
@@ -228,14 +228,14 @@ const SettingsPage = () => {
                   <Gift className="h-6 w-6 text-violet-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-semibold">Programa de Referral</h2>
+                  <h2 className="text-2xl font-semibold">Programa de Indicação</h2>
                   <p className="text-gray-400 text-sm">Ganhe 20% de desconto para cada amigo que se cadastrar</p>
                 </div>
               </div>
 
               <div className="bg-gray-950/50 rounded-lg p-6 mb-6">
                 <div className="mb-4">
-                  <Label className="text-gray-400 text-sm mb-2 block">Seu Link de Referral</Label>
+                  <Label className="text-gray-400 text-sm mb-2 block">Seu link de indicação</Label>
                   <div className="flex gap-2">
                     <Input
                       data-testid="referral-link-input"
@@ -287,7 +287,7 @@ const SettingsPage = () => {
                 <ul className="space-y-2 text-sm text-gray-400">
                   <li className="flex items-start gap-2">
                     <span className="text-blue-400 mt-1">•</span>
-                    <span>Compartilhe seu link de referral com amigos</span>
+                    <span>Compartilhe seu link de indicação com amigos</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-blue-400 mt-1">•</span>

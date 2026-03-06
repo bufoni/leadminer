@@ -9,7 +9,35 @@ import logging
 import os
 import json
 import time
+import unicodedata
 from bs4 import BeautifulSoup
+
+
+def _normalize_text(s: str) -> str:
+    """Normalize for comparison: lowercase, strip, remove accents."""
+    if not s:
+        return ""
+    s = s.strip().lower()
+    nfd = unicodedata.normalize("NFD", s)
+    return "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+
+
+def _lead_matches_location(lead: dict, location: str) -> bool:
+    """True if the lead's bio or name contains the location (case/accent insensitive)."""
+    if not location or not location.strip():
+        return True
+    loc_norm = _normalize_text(location)
+    bio = (lead.get("bio") or "").strip()
+    name = (lead.get("name") or "").strip()
+    combined = f"{name} {bio}"
+    combined_norm = _normalize_text(combined)
+    # Match if full location string or any token (e.g. "São Paulo, Brasil" -> match "sao paulo" or "brasil")
+    if loc_norm in combined_norm:
+        return True
+    for token in loc_norm.split():
+        if len(token) >= 2 and token in combined_norm:
+            return True
+    return False
 
 # Configure logging
 logging.basicConfig(
@@ -41,6 +69,7 @@ class ProxyConfig(BaseModel):
 class ScrapeRequest(BaseModel):
     keywords: List[str] = []
     hashtags: List[str] = []
+    location: Optional[str] = None  # optional; used when platform supports it
     max_profiles: int = 20
     accounts: List[AccountConfig] = []
     proxies: List[ProxyConfig] = []
@@ -1003,6 +1032,72 @@ class HumanLikeScraper:
         
         return results
     
+    async def scrape_search(self, keyword: str, max_profiles: int = 20) -> List[Dict]:
+        """Scrape profiles from Instagram search by keyword (people search)."""
+        results = []
+        try:
+            # Instagram web: topsearch returns users, hashtags, places (same cookies as page)
+            query = keyword.strip()
+            if not query:
+                return results
+            logger.info(f"Searching Instagram for: {query}")
+            url = f"https://www.instagram.com/web/search/topsearch/?query={query}"
+            try:
+                resp = await self.page.evaluate("""
+                    async (url) => {
+                        const r = await fetch(url, { credentials: 'include' });
+                        const j = await r.json();
+                        return JSON.stringify(j);
+                    }
+                """, url)
+                data = json.loads(resp)
+            except Exception as e:
+                logger.warning(f"Instagram topsearch fetch failed: {e}, trying explore")
+                # Fallback: go to explore and look for profile links (less reliable)
+                await self.page.goto(f"https://www.instagram.com/explore/", wait_until='domcontentloaded', timeout=30000)
+                await self.human_delay(3, 5)
+                all_links = await self.page.query_selector_all('a[href^="/"]')
+                usernames_found = set()
+                for link in all_links:
+                    if len(usernames_found) >= max_profiles:
+                        break
+                    href = await link.get_attribute('href')
+                    if href:
+                        parts = href.strip('/').split('/')
+                        if len(parts) == 1 and self._is_valid_username(parts[0]):
+                            usernames_found.add(parts[0])
+                for username in list(usernames_found)[:max_profiles]:
+                    profile_data = await self.scrape_profile(username)
+                    if profile_data:
+                        profile_data['source'] = 'search'
+                        results.append(profile_data)
+                    await self.human_delay(2, 4)
+                return results
+            
+            users = (data.get("users") or [])
+            if isinstance(users, dict):
+                users = list(users.values()) if users else []
+            for item in users[:max_profiles]:
+                try:
+                    if not isinstance(item, dict):
+                        continue
+                    user_obj = item.get("user") or item
+                    username = (user_obj.get("username") if isinstance(user_obj, dict) else None) or item.get("username")
+                    if not username or not self._is_valid_username(username):
+                        continue
+                    profile_data = await self.scrape_profile(username)
+                    if profile_data:
+                        profile_data['source'] = 'search'
+                        results.append(profile_data)
+                    await self.human_delay(2, 4)
+                except Exception as e:
+                    logger.debug(f"Error scraping search result: {e}")
+                    continue
+            logger.info(f"Instagram search '{keyword}': found {len(results)} leads")
+        except Exception as e:
+            logger.error(f"Error searching Instagram for {keyword}: {str(e)}")
+        return results
+    
     def _is_valid_username(self, username: str) -> bool:
         """Check if a string is a valid Instagram username"""
         if not username:
@@ -1138,8 +1233,25 @@ async def scrape_profiles(request: ScrapeRequest):
                     logger.error(error_msg)
                     errors.append(error_msg)
             
+            # Scrape keywords (search people)
+            for keyword in request.keywords:
+                try:
+                    leads = await scraper.scrape_search(keyword, max_profiles=request.max_profiles)
+                    all_leads.extend(leads)
+                    logger.info(f"Instagram search '{keyword}': found {len(leads)} leads")
+                except Exception as e:
+                    error_msg = f"Error searching Instagram for {keyword}: {str(e)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+            
         finally:
             await scraper.close()
+    
+    # If location was provided, keep only leads that mention that location (bio/name)
+    if request.location and request.location.strip():
+        before = len(all_leads)
+        all_leads = [l for l in all_leads if _lead_matches_location(l, request.location)]
+        logger.info(f"Location filter '{request.location}': {before} -> {len(all_leads)} leads")
     
     # Remove duplicates
     seen_usernames = set()

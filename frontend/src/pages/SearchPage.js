@@ -7,7 +7,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Plus, X, Users, Camera, Music2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, X, Users } from 'lucide-react';
+import PlatformLogo from '../components/PlatformLogo';
 import { Link } from 'react-router-dom';
 
 const SearchPage = () => {
@@ -132,7 +133,7 @@ const SearchPage = () => {
                       : 'border-white/10 bg-gray-950/50 text-gray-400 hover:border-white/20'
                   }`}
                 >
-                  <Camera className="h-5 w-5" />
+                  <PlatformLogo platform="instagram" className="h-6 w-6 text-white" />
                   Instagram
                 </button>
                 <button
@@ -145,7 +146,7 @@ const SearchPage = () => {
                       : 'border-white/10 bg-gray-950/50 text-gray-400 hover:border-white/20'
                   }`}
                 >
-                  <Music2 className="h-5 w-5" />
+                  <PlatformLogo platform="tiktok" className="h-6 w-6 text-white" />
                   TikTok
                 </button>
               </div>
