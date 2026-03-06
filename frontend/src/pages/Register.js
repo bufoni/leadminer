@@ -13,6 +13,7 @@ const Register = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [referrerName, setReferrerName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,6 +42,14 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      toast.error('As senhas não conferem. Confirme a senha.');
+      return;
+    }
+    if (password.length < 6) {
+      toast.error('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -208,6 +217,22 @@ const Register = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
+                placeholder="Mínimo 6 caracteres"
+                className="bg-gray-950/50 border-gray-800 text-white"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmar senha</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                data-testid="register-confirm-password-input"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                placeholder="Repita a senha"
                 className="bg-gray-950/50 border-gray-800 text-white"
               />
             </div>

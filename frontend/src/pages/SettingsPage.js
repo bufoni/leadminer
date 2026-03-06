@@ -18,6 +18,10 @@ const SettingsPage = () => {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -106,6 +110,33 @@ const SettingsPage = () => {
     }
   };
 
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error('A nova senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('A confirmação da senha não confere');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await api.patch('/users/password', {
+        current_password: currentPassword,
+        new_password: newPassword
+      });
+      toast.success('Senha alterada com sucesso');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Erro ao alterar senha');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -124,12 +155,12 @@ const SettingsPage = () => {
           <p className="text-gray-400">Gerencie seu plano, perfil e histórico</p>
         </div>
 
-        <Tabs defaultValue="plan" className="space-y-6">
+        <Tabs defaultValue="profile" className="space-y-6">
           <TabsList className="bg-gray-900/50 border border-white/5">
-            <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>
-            <TabsTrigger data-testid="tab-referral" value="referral">Referral</TabsTrigger>
             <TabsTrigger data-testid="tab-profile" value="profile">Perfil</TabsTrigger>
+            <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>
             <TabsTrigger data-testid="tab-billing" value="billing">Histórico</TabsTrigger>
+            <TabsTrigger data-testid="tab-referral" value="referral">Referral</TabsTrigger>
           </TabsList>
 
           {/* Plan Tab */}
@@ -350,6 +381,64 @@ const SettingsPage = () => {
                     <div className="mt-2 text-white capitalize">{user?.role}</div>
                   </div>
                 </div>
+
+                {/* Change Password */}
+                <form onSubmit={handleChangePassword} className="pt-6 mt-6 border-t border-white/5 space-y-4">
+                  <h3 className="text-lg font-semibold text-white">Alterar senha</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="current-password">Senha atual</Label>
+                      <Input
+                        id="current-password"
+                        type="password"
+                        data-testid="current-password-input"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="Digite sua senha atual"
+                        required
+                        className="bg-gray-950/50 border-gray-800 text-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password">Nova senha</Label>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        data-testid="new-password-input"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Mínimo 6 caracteres"
+                        required
+                        minLength={6}
+                        className="bg-gray-950/50 border-gray-800 text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        data-testid="confirm-password-input"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repita a nova senha"
+                        required
+                        minLength={6}
+                        className="bg-gray-950/50 border-gray-800 text-white"
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    data-testid="change-password-button"
+                    disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                    className="bg-violet-600 hover:bg-violet-700 text-white"
+                  >
+                    {changingPassword ? 'Alterando...' : 'Alterar senha'}
+                  </Button>
+                </form>
               </div>
             </Card>
           </TabsContent>

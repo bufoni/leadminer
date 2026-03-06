@@ -1054,6 +1054,31 @@ async def google_auth_callback(request: Request):
 
 # ===================== USER ROUTES =====================
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@api_router.patch("/users/password")
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Change user password. Requires current password."""
+    user_data = await db.users.find_one({"id": current_user.id}, {"_id": 0, "password": 1})
+    if not user_data or not user_data.get("password"):
+        raise HTTPException(status_code=400, detail="Conta sem senha definida (login social). Use redefinir senha no login.")
+    if not verify_password(body.current_password, user_data["password"]):
+        raise HTTPException(status_code=400, detail="Senha atual incorreta.")
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="A nova senha deve ter no mínimo 6 caracteres.")
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"password": hash_password(body.new_password)}}
+    )
+    return {"message": "Senha alterada com sucesso."}
+
+
 @api_router.post("/users/avatar")
 async def upload_avatar(
     request: Request,
