@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
+import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
 import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2, RefreshCw, TrendingUp } from 'lucide-react';
 import PlatformLogo from '../components/PlatformLogo';
@@ -229,10 +230,10 @@ const LeadsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
+      <SectionContainer className="py-8 md:py-10">
         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Leads</h1>
+            <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Leads</h1>
             <p className="text-gray-500 dark:text-gray-400">{filteredLeads.length} leads encontrados</p>
           </div>
           <div className="flex gap-2">
@@ -240,7 +241,7 @@ const LeadsPage = () => {
               onClick={recalculateScores}
               disabled={recalculating}
               variant="outline"
-              className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              className="border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               {recalculating ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -277,11 +278,11 @@ const LeadsPage = () => {
                 placeholder="Buscar por nome, username ou email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-gray-950/50 border-gray-800 text-white pl-10"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white pl-10"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger data-testid="status-filter" className="bg-gray-950/50 border-gray-800 text-white">
+              <SelectTrigger data-testid="status-filter" className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
                 <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
@@ -292,7 +293,7 @@ const LeadsPage = () => {
               </SelectContent>
             </Select>
             <Select value={qualificationFilter} onValueChange={setQualificationFilter}>
-              <SelectTrigger data-testid="qualification-filter" className="bg-gray-950/50 border-gray-800 text-white">
+              <SelectTrigger data-testid="qualification-filter" className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
                 <SelectValue placeholder="Filtrar por qualificação" />
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
@@ -303,7 +304,7 @@ const LeadsPage = () => {
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={(value) => { setSortBy(value); fetchLeads(); }}>
-              <SelectTrigger className="bg-gray-950/50 border-gray-800 text-white">
+              <SelectTrigger className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
                 <TrendingUp className="mr-2 h-4 w-4" />
                 <SelectValue placeholder="Ordenar por" />
               </SelectTrigger>
@@ -343,11 +344,11 @@ const LeadsPage = () => {
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold text-lg">{lead.name || lead.username}</h3>
                       {lead.platform === 'tiktok' ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
                           <PlatformLogo platform="tiktok" className="h-3.5 w-3.5" /> TikTok
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-white/10 bg-gray-800/50 text-gray-300">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border border-gray-300 dark:border-white/10 bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
                           <PlatformLogo platform="instagram" className="h-3.5 w-3.5" /> Instagram
                         </span>
                       )}
@@ -384,7 +385,7 @@ const LeadsPage = () => {
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 line-clamp-2">{lead.bio}</p>
                     )}
                     {lead.notes && (
-                      <div className="mt-2 p-2 bg-gray-950/50 rounded text-sm text-gray-300">
+                      <div className="mt-2 p-2 bg-gray-100 dark:bg-gray-950/50 rounded text-sm text-gray-700 dark:text-gray-300">
                         <strong>Notas:</strong> {lead.notes}
                       </div>
                     )}
@@ -406,7 +407,7 @@ const LeadsPage = () => {
                       >
                         <SelectTrigger
                           data-testid={`lead-status-${lead.id}`}
-                          className="bg-gray-950/50 border-gray-800 text-white w-[130px]"
+                          className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white w-[130px]"
                         >
                           <SelectValue />
                         </SelectTrigger>
@@ -422,7 +423,7 @@ const LeadsPage = () => {
                       >
                         <SelectTrigger
                           data-testid={`lead-qualification-${lead.id}`}
-                          className="bg-gray-950/50 border-gray-800 text-white w-[110px]"
+                          className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white w-[110px]"
                         >
                           <SelectValue />
                         </SelectTrigger>
@@ -450,7 +451,7 @@ const LeadsPage = () => {
                           size="sm"
                           variant="outline"
                           onClick={() => openEditDialog(lead)}
-                          className="border-white/10 text-white hover:bg-white/5"
+                          className="border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                         >
                           <Edit2 className="h-4 w-4 mr-1" />
                           Notas
@@ -467,7 +468,7 @@ const LeadsPage = () => {
                               value={editNotes}
                               onChange={(e) => setEditNotes(e.target.value)}
                               placeholder="Adicione suas anotações sobre este lead..."
-                              className="bg-gray-950/50 border-gray-800 text-white mt-2"
+                              className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white mt-2"
                               rows={6}
                             />
                           </div>
@@ -475,7 +476,7 @@ const LeadsPage = () => {
                             <Button
                               variant="outline"
                               onClick={() => setEditingLead(null)}
-                              className="border-white/10 text-white hover:bg-white/5"
+                              className="border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                             >
                               Cancelar
                             </Button>
@@ -516,13 +517,13 @@ const LeadsPage = () => {
                 <>
                   <div className="bg-gray-50 dark:bg-gray-950/50 rounded-lg p-4 border border-gray-200 dark:border-white/5">
                     <Label className="text-gray-500 dark:text-gray-400 text-sm mb-2 block">Para: @{aiMessageLead?.username}</Label>
-                    <p className="text-white whitespace-pre-wrap">{suggestedMessage}</p>
+                    <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{suggestedMessage}</p>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <Button
                       variant="outline"
                       onClick={() => setAiMessageLead(null)}
-                      className="border-white/10 text-white hover:bg-white/5"
+                      className="border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                     >
                       Fechar
                     </Button>
@@ -539,7 +540,7 @@ const LeadsPage = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </SectionContainer>
     </DashboardLayout>
   );
 };

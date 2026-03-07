@@ -4,6 +4,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../lib/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
 import { Users, Search, TrendingUp, Package } from 'lucide-react';
 import PlatformLogo from '../components/PlatformLogo';
@@ -68,9 +69,9 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
+      <SectionContainer className="py-8 md:py-10">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Dashboard</h1>
+          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400">Bem-vindo de volta, {user?.name}!</p>
         </div>
 
@@ -82,7 +83,7 @@ const Dashboard = () => {
                 <Users className="h-5 w-5 text-violet-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_leads || 0}</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_leads || 0}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">Total de Leads</div>
           </Card>
 
@@ -92,7 +93,7 @@ const Dashboard = () => {
                 <TrendingUp className="h-5 w-5 text-blue-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.leads_used || 0}/{stats?.leads_limit || 0}</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.leads_used || 0}/{stats?.leads_limit || 0}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">Leads Usados</div>
           </Card>
 
@@ -102,7 +103,7 @@ const Dashboard = () => {
                 <Search className="h-5 w-5 text-emerald-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_searches || 0}</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_searches || 0}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">Buscas Realizadas</div>
           </Card>
 
@@ -112,7 +113,7 @@ const Dashboard = () => {
                 <Package className="h-5 w-5 text-fuchsia-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1 capitalize text-gray-900 dark:text-white">{stats?.plan || 'Trial'}</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 capitalize text-gray-900 dark:text-white">{stats?.plan || 'Trial'}</div>
             <div className="text-sm text-gray-500 dark:text-gray-400">Plano Atual</div>
           </Card>
         </div>
@@ -196,7 +197,7 @@ const Dashboard = () => {
             </Link>
           )}
         </Card>
-      </div>
+      </SectionContainer>
     </DashboardLayout>
   );
 };

@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
+import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Plus, X, Users } from 'lucide-react';
 import PlatformLogo from '../components/PlatformLogo';
@@ -84,26 +85,27 @@ const SearchPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-8 max-w-3xl mx-auto">
+      <SectionContainer className="py-8 md:py-10">
+      <div className="max-w-3xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Nova Busca</h1>
+          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Nova Busca</h1>
           <p className="text-gray-600 dark:text-gray-400">Configure os parâmetros para encontrar leads no Instagram ou TikTok</p>
         </div>
 
         {/* Plan Info */}
         <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-4 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <div className="text-sm text-gray-500 dark:text-gray-400">Leads disponíveis este mês</div>
               <div className="text-2xl font-bold text-emerald-400">{leadsRemaining}</div>
             </div>
-            <div className="text-center">
+            <div className="sm:text-center">
               <div className="text-sm text-gray-500 dark:text-gray-400">Usados / Limite</div>
-              <div className="text-lg font-semibold">{user?.leads_used || 0} / {user?.leads_limit || 0}</div>
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">{user?.leads_used || 0} / {user?.leads_limit || 0}</div>
             </div>
-            <div className="text-right">
+            <div className="sm:text-right">
               <div className="text-sm text-gray-500 dark:text-gray-400">Plano atual</div>
-              <div className="text-lg font-semibold capitalize">{user?.plan}</div>
+              <div className="text-lg font-semibold capitalize text-gray-900 dark:text-white">{user?.plan}</div>
             </div>
           </div>
           {leadsRemaining === 0 && (
@@ -122,7 +124,7 @@ const SearchPage = () => {
             {/* Platform */}
             <div className="space-y-3">
               <Label>Plataforma</Label>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   data-testid="platform-instagram"
@@ -163,7 +165,7 @@ const SearchPage = () => {
                       value={keyword}
                       onChange={(e) => updateKeyword(index, e.target.value)}
                       placeholder="Ex: marketing digital"
-                      className="bg-gray-950/50 border-gray-800 text-white"
+                      className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
                     />
                     {keywords.length > 1 && (
                       <Button
@@ -186,7 +188,7 @@ const SearchPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={addKeyword}
-                className="border-white/10 text-white hover:bg-white/5"
+                className="border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Adicionar palavra-chave
@@ -204,7 +206,7 @@ const SearchPage = () => {
                       value={hashtag}
                       onChange={(e) => updateHashtag(index, e.target.value)}
                       placeholder="Ex: marketingdigital"
-                      className="bg-gray-950/50 border-gray-800 text-white"
+                      className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
                     />
                     {hashtags.length > 1 && (
                       <Button
@@ -227,7 +229,7 @@ const SearchPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={addHashtag}
-                className="border-white/10 text-white hover:bg-white/5"
+                className="border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5"
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Adicionar hashtag
@@ -243,7 +245,7 @@ const SearchPage = () => {
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="Ex: São Paulo, Brasil"
-                className="bg-gray-950/50 border-gray-800 text-white"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -253,18 +255,18 @@ const SearchPage = () => {
                 <Users className="h-4 w-4 text-violet-400" />
                 Quantidade de leads desejada
               </Label>
-              <div className="flex items-center gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-center">
                 <Input
                   type="range"
                   min="1"
                   max={Math.min(leadsRemaining, 50)}
                   value={maxLeads}
                   onChange={(e) => setMaxLeads(parseInt(e.target.value))}
-                  className="flex-1 h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                  className="h-2 bg-gray-200 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-violet-600"
                   data-testid="max-leads-slider"
                   disabled={leadsRemaining === 0}
                 />
-                <div className="w-20 text-center">
+                <div className="w-full sm:w-20 text-center">
                   <Input
                     type="number"
                     min="1"
@@ -304,6 +306,7 @@ const SearchPage = () => {
           </form>
         </Card>
       </div>
+      </SectionContainer>
     </DashboardLayout>
   );
 };

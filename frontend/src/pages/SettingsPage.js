@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
+import { SectionContainer } from '../components/ui/section-container';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { toast } from 'sonner';
 import { Check, Copy, Gift, Users as UsersIcon, ImagePlus, Trash2 } from 'lucide-react';
@@ -161,7 +162,7 @@ const SettingsPage = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">Carregando...</div>
         </div>
       </DashboardLayout>
     );
@@ -169,9 +170,10 @@ const SettingsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-8 max-w-5xl mx-auto">
+      <SectionContainer className="py-8 md:py-10">
+      <div className="max-w-5xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Configurações</h1>
+          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Configurações</h1>
           <p className="text-gray-600 dark:text-gray-400">Gerencie seu plano, perfil e histórico</p>
         </div>
 
@@ -538,6 +540,7 @@ const SettingsPage = () => {
           </TabsContent>
         </Tabs>
       </div>
+      </SectionContainer>
     </DashboardLayout>
   );
 };

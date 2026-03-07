@@ -4,6 +4,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../lib/api';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
 import { ArrowLeft, Download, RefreshCw } from 'lucide-react';
 import PlatformLogo from '../components/PlatformLogo';
@@ -61,10 +62,10 @@ const SearchesPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
-        <div className="mb-8 flex justify-between items-center">
+      <SectionContainer className="py-8 md:py-10">
+        <div className="mb-8 flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div>
-            <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-white">Buscas</h1>
+            <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Buscas</h1>
             <p className="text-gray-600 dark:text-gray-400">Acompanhe o status de todas as suas buscas</p>
           </div>
           <div className="flex gap-2">
@@ -179,7 +180,7 @@ const SearchesPage = () => {
             ))}
           </div>
         )}
-      </div>
+      </SectionContainer>
     </DashboardLayout>
   );
 };

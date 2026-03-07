@@ -1,47 +1,35 @@
 # Scraper Service Dockerfile
 FROM python:3.11-slim
 
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
 WORKDIR /app
 
-# Install system dependencies for Playwright
+# Install system dependencies required for Playwright
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     gnupg \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install Python dependencies first (better cache)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
-RUN playwright install-deps chromium
+RUN pip install -r requirements.txt
 
-# Copy application code
+# Install Playwright browser + dependencies
+RUN playwright install --with-deps chromium
+
+# Copy application
 COPY . .
 
 # Expose port
 EXPOSE 8002
 
-# Health check
+# Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8002/health || exit 1
+CMD curl -f http://localhost:8002/health || exit 1
 
-# Run the application
+# Run FastAPI
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002"]

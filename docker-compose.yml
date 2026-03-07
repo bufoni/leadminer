@@ -32,7 +32,9 @@ services:
       - "8001:8001"
     environment:
       - MONGO_URL=mongodb://mongodb:27017/leadminer
+      - DB_NAME=${DB_NAME:-leadminer}
       - JWT_SECRET=${JWT_SECRET}
+      - STRIPE_API_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -48,6 +50,12 @@ services:
         condition: service_healthy
     networks:
       - leadminer-network
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.leadminer-api.rule=Host(`api.leadminer.localhost`)"
+      - "traefik.http.services.leadminer-api.loadbalancer.server.port=8001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
       interval: 30s
@@ -61,8 +69,6 @@ services:
       dockerfile: Dockerfile
     container_name: leadminer-scraper
     restart: always
-    ports:
-      - "8002:8002"
     environment:
       - SCRAPER_PORT=8002
     networks:
@@ -84,15 +90,23 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - REACT_APP_BACKEND_URL=${BACKEND_URL:-https://api.seudominio.com.br}
+        - REACT_APP_BACKEND_URL=${BACKEND_URL:-}
     container_name: leadminer-frontend
     restart: always
-    ports:
-      - "3000:80"
     depends_on:
       - backend
     networks:
       - leadminer-network
+      - proxy
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.leadminer-frontend.rule=Host(`leadminer.localhost`)"
+      - "traefik.http.routers.leadminer-frontend.entrypoints=web"
+      - "traefik.http.routers.leadminer-frontend.service=leadminer-frontend-svc"
+      - "traefik.http.services.leadminer-frontend-svc.loadbalancer.server.port=80"
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
@@ -102,6 +116,9 @@ services:
 networks:
   leadminer-network:
     driver: bridge
+
+  proxy:
+    external: true
 
 volumes:
   mongodb_data:

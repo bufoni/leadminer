@@ -6,13 +6,12 @@ import api from '../lib/api';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
 import { 
   Users, 
   Search, 
   TrendingUp, 
-  DollarSign, 
   Activity,
   Server,
   Shield,
@@ -21,8 +20,7 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle,
-  XCircle,
-  Eye
+  XCircle
 } from 'lucide-react';
 
 const AdminDashboard = () => {
@@ -163,14 +161,14 @@ const AdminDashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
+      <SectionContainer className="py-8 md:py-10">
         <div className="mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
               <Shield className="h-5 w-5 text-red-400" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+              <h1 className="font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
               <p className="text-gray-600 dark:text-gray-400">Painel de administração do sistema</p>
             </div>
           </div>
@@ -441,23 +439,23 @@ const AdminDashboard = () => {
         </div>
 
         {/* Recent Searches */}
-        <Card className="bg-gray-900/50 border-white/5 p-6 mb-8">
+        <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
+            <h2 className="text-xl font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
               <Search className="h-5 w-5 text-violet-400" />
               Buscas Recentes (Sistema)
             </h2>
           </div>
 
           {recentSearches.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">Nenhuma busca no sistema ainda</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhuma busca no sistema ainda</p>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {recentSearches.map((search) => (
                 <div
                   key={search.id}
                   data-testid={`admin-search-${search.id}`}
-                  className="flex items-center justify-between p-4 bg-gray-950/50 rounded-lg border border-white/5"
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -470,13 +468,13 @@ const AdminDashboard = () => {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
                       Usuário: {search.user_email || search.user_id?.slice(0, 8) || 'N/A'} • 
                       {new Date(search.created_at).toLocaleString('pt-BR')}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-400">{search.leads_found || 0} leads</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">{search.leads_found || 0} leads</span>
                     <span
                       className={`text-xs px-2 py-1 rounded-full ${
                         search.status === 'finished'
@@ -509,7 +507,7 @@ const AdminDashboard = () => {
                 <div
                   key={u.id}
                   data-testid={`admin-user-${u.id}`}
-                  className="flex items-center justify-between p-3 bg-gray-950/50 rounded-lg border border-white/5"
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5"
                 >
                   <div className="flex items-center gap-3">
                     {u.avatar_url ? (
@@ -520,8 +518,8 @@ const AdminDashboard = () => {
                       </div>
                     )}
                     <div>
-                      <div className="font-medium text-sm">{u.name}</div>
-                      <div className="text-xs text-gray-400">{u.email}</div>
+                      <div className="font-medium text-sm text-gray-900 dark:text-white">{u.name}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{u.email}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -535,7 +533,7 @@ const AdminDashboard = () => {
                     <span className="text-xs px-2 py-1 rounded-full bg-violet-500/10 text-violet-400">
                       {u.plan}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
                       {u.leads_used || 0}/{u.leads_limit || 0}
                     </span>
                   </div>
@@ -544,7 +542,7 @@ const AdminDashboard = () => {
             </div>
           </Card>
         )}
-      </div>
+      </SectionContainer>
     </DashboardLayout>
   );
 };

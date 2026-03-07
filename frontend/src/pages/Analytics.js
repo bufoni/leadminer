@@ -3,9 +3,9 @@ import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { Card } from '../components/ui/card';
-import { Button } from '../components/ui/button';
+import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
-import { ArrowLeft, TrendingUp, Users, DollarSign, Target, BarChart3 } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, Target, BarChart3 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const Analytics = () => {
@@ -45,7 +45,7 @@ const Analytics = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-white">Carregando analytics...</div>
+          <div className="text-gray-900 dark:text-white">Carregando analytics...</div>
         </div>
       </DashboardLayout>
     );
@@ -53,61 +53,61 @@ const Analytics = () => {
 
   return (
     <DashboardLayout>
-      <div className="p-8">
+      <SectionContainer className="py-8 md:py-10">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Analytics Avançado</h1>
-          <p className="text-gray-400">Insights detalhados sobre seus leads e performance</p>
+          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Analytics Avançado</h1>
+          <p className="text-gray-600 dark:text-gray-400">Insights detalhados sobre seus leads e performance</p>
         </div>
 
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card data-testid="kpi-total-leads" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="kpi-total-leads" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center">
                 <Users className="h-5 w-5 text-violet-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">{overview?.total_leads || 0}</div>
-            <div className="text-sm text-gray-400">Total de Leads</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{overview?.total_leads || 0}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Total de Leads</div>
             <div className="text-sm text-emerald-400 mt-2">+{overview?.leads_this_month || 0} este mês</div>
           </Card>
 
-          <Card data-testid="kpi-conversion" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="kpi-conversion" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
                 <Target className="h-5 w-5 text-blue-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">{overview?.conversion_rate || 0}%</div>
-            <div className="text-sm text-gray-400">Taxa de Conversão</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{overview?.conversion_rate || 0}%</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Taxa de Conversão</div>
           </Card>
 
-          <Card data-testid="kpi-cost" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="kpi-cost" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                 <DollarSign className="h-5 w-5 text-emerald-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">R${overview?.cost_per_lead || 0}</div>
-            <div className="text-sm text-gray-400">Custo por Lead</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">R${overview?.cost_per_lead || 0}</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Custo por Lead</div>
           </Card>
 
-          <Card data-testid="kpi-roi" className="bg-gray-900/50 border-white/5 p-6">
+          <Card data-testid="kpi-roi" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
             <div className="flex items-center justify-between mb-2">
               <div className="w-10 h-10 rounded-lg bg-fuchsia-500/10 flex items-center justify-center">
                 <TrendingUp className="h-5 w-5 text-fuchsia-400" />
               </div>
             </div>
-            <div className="text-3xl font-bold mb-1">{overview?.roi_estimate || 0}%</div>
-            <div className="text-sm text-gray-400">ROI Estimado</div>
+            <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{overview?.roi_estimate || 0}%</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">ROI Estimado</div>
           </Card>
         </div>
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Timeline */}
-          <Card className="bg-gray-900/50 border-white/5 p-6">
-            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
               <BarChart3 className="h-5 w-5 text-violet-400" />
               Leads nos Últimos 30 Dias
             </h2>
@@ -129,8 +129,8 @@ const Analytics = () => {
           </Card>
 
           {/* Conversion Funnel */}
-          <Card className="bg-gray-900/50 border-white/5 p-6">
-            <h2 className="text-xl font-semibold mb-4">Funil de Conversão</h2>
+          <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Funil de Conversão</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={funnel} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -151,8 +151,8 @@ const Analytics = () => {
 
         {/* Source Breakdown */}
         {sourceBreakdown.length > 0 && (
-          <Card className="bg-gray-900/50 border-white/5 p-6">
-            <h2 className="text-xl font-semibold mb-4">Leads por Fonte</h2>
+          <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Leads por Fonte</h2>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -182,24 +182,24 @@ const Analytics = () => {
         )}
 
         {/* Additional Metrics */}
-        <Card className="bg-gray-900/50 border-white/5 p-6 mt-6">
-          <h2 className="text-xl font-semibold mb-4">Métricas Adicionais</h2>
+        <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6 mt-6">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Métricas Adicionais</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <div className="text-gray-400 text-sm mb-1">Média de Seguidores</div>
-              <div className="text-2xl font-bold">{overview?.avg_followers?.toLocaleString() || 0}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Média de Seguidores</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{overview?.avg_followers?.toLocaleString() || 0}</div>
             </div>
             <div>
-              <div className="text-gray-400 text-sm mb-1">Leads Este Mês</div>
-              <div className="text-2xl font-bold">{overview?.leads_this_month || 0}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Leads Este Mês</div>
+              <div className="text-2xl font-bold text-gray-900 dark:text-white">{overview?.leads_this_month || 0}</div>
             </div>
             <div>
-              <div className="text-gray-400 text-sm mb-1">Plano Atual</div>
-              <div className="text-2xl font-bold capitalize">{user?.plan}</div>
+              <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Plano Atual</div>
+              <div className="text-2xl font-bold capitalize text-gray-900 dark:text-white">{user?.plan}</div>
             </div>
           </div>
         </Card>
-      </div>
+      </SectionContainer>
     </DashboardLayout>
   );
 };
