@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -21,6 +22,7 @@ const Register = () => {
   const [facebookLoading, setFacebookLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const ref = searchParams.get('ref');
@@ -33,8 +35,9 @@ const Register = () => {
   const validateReferral = async (code) => {
     try {
       const response = await api.get(`/referrals/validate/${code}`);
-      setReferrerName(response.data.referrer_name);
-      toast.success(`Você foi indicado por ${response.data.referrer_name}! Ganhe 20% de desconto na primeira compra.`);
+      const referrer = response.data.referrer_name;
+      setReferrerName(referrer);
+      toast.success(t('auth.register.referralSuccess', { name: referrer }));
     } catch (error) {
       console.error('Error validating referral:', error);
     }
@@ -43,21 +46,21 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast.error('As senhas não conferem. Confirme a senha.');
+      toast.error(t('auth.register.passwordsDontMatch'));
       return;
     }
     if (password.length < 6) {
-      toast.error('A senha deve ter no mínimo 6 caracteres');
+      toast.error(t('auth.register.passwordMinLength'));
       return;
     }
     setLoading(true);
 
     try {
       await register(name, email, password, referralCode || null);
-      toast.success('Conta criada com sucesso!');
+      toast.success(t('auth.register.success'));
       navigate('/dashboard');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao criar conta');
+      toast.error(error.response?.data?.detail || t('auth.register.error'));
     } finally {
       setLoading(false);
     }
@@ -78,7 +81,7 @@ const Register = () => {
       // Redirect to Google
       window.location.href = response.data.auth_url;
     } catch (error) {
-      toast.error('Erro ao iniciar cadastro com Google');
+      toast.error(t('auth.register.errorGoogle'));
       setGoogleLoading(false);
     }
   };
@@ -98,7 +101,7 @@ const Register = () => {
       // Redirect to Facebook
       window.location.href = response.data.auth_url;
     } catch (error) {
-      toast.error('Erro ao iniciar cadastro com Facebook');
+      toast.error(t('auth.register.errorFacebook'));
       setFacebookLoading(false);
     }
   };
@@ -109,14 +112,19 @@ const Register = () => {
         <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-white/5 rounded-lg p-8 shadow-sm dark:shadow-none backdrop-blur-sm">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <img 
-                src="https://static.prod-images.emergentagent.com/jobs/303cf839-62ca-4b43-8c31-9c5fe9bec8e9/images/64a5a31919abdae9ff3732c8bdff9a51f971ae3cb297e25197ec7ab583a76e76.png" 
-                alt="LeadMiner Logo" 
-                className="w-16 h-16"
+              <img
+                src="https://static.prod-images.emergentagent.com/jobs/303cf839-62ca-4b43-8c31-9c5fe9bec8e9/images/64a5a31919abdae9ff3732c8bdff9a51f971ae3cb297e25197ec7ab583a76e76.png"
+                alt="LeadMiner Logo"
+                className="w-16 h-16 object-contain"
+                width={64}
+                height={64}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
               />
             </div>
-            <h1 className="text-3xl font-bold text-gradient mb-2">LeadMiner</h1>
-            <p className="text-gray-600 dark:text-gray-400">Crie sua conta gratuita</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">LeadMiner</h1>
+            <p className="text-gray-600 dark:text-gray-400">{t('auth.register.title')}</p>
           </div>
 
           {/* Social Login Buttons */}
@@ -139,7 +147,7 @@ const Register = () => {
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
               )}
-              Continuar com Google
+              {t('auth.login.continueGoogle')}
             </Button>
 
             {/* Facebook Register */}
@@ -157,7 +165,7 @@ const Register = () => {
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
               )}
-              Continuar com Facebook
+              {t('auth.login.continueFacebook')}
             </Button>
           </div>
 
@@ -166,7 +174,7 @@ const Register = () => {
               <div className="w-full border-t border-gray-700"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white dark:bg-gray-900/50 text-gray-500 dark:text-gray-400">Ou continue com email</span>
+              <span className="px-2 bg-white dark:bg-gray-900/50 text-gray-500 dark:text-gray-400">{t('auth.login.continueWithEmail')}</span>
             </div>
           </div>
 
@@ -175,14 +183,14 @@ const Register = () => {
               <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-4 flex items-center gap-3">
                 <Gift className="h-5 w-5 text-violet-400 flex-shrink-0" />
                 <div className="text-sm">
-                  <div className="font-medium text-gray-900 dark:text-white">Indicação de {referrerName}</div>
-                  <div className="text-gray-600 dark:text-gray-400">Ganhe 20% de desconto na primeira compra!</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{t('settings.referralFrom', { name: referrerName })}</div>
+                  <div className="text-gray-600 dark:text-gray-400">{t('settings.referralMessage')}</div>
                 </div>
               </div>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
+              <Label htmlFor="name">{t('auth.register.name')}</Label>
               <Input
                 id="name"
                 type="text"
@@ -195,7 +203,7 @@ const Register = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('auth.register.email')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -208,7 +216,7 @@ const Register = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
+              <Label htmlFor="password">{t('auth.register.password')}</Label>
               <Input
                 id="password"
                 type="password"
@@ -217,13 +225,13 @@ const Register = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                placeholder="Mínimo 6 caracteres"
+                placeholder={t('auth.register.passwordPlaceholder')}
                 className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirmar senha</Label>
+              <Label htmlFor="confirmPassword">{t('auth.register.confirmPassword')}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -232,7 +240,7 @@ const Register = () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 minLength={6}
-                placeholder="Repita a senha"
+                placeholder={t('auth.register.confirmPlaceholder')}
                 className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
@@ -246,18 +254,18 @@ const Register = () => {
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Criando conta...
+                  {t('auth.register.submitting')}
                 </>
               ) : (
-                'Criar Conta'
+                t('auth.register.submit')
               )}
             </Button>
           </form>
 
           <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            Já tem uma conta?{' '}
+            {t('auth.register.hasAccount')}{' '}
             <Link to="/login" className="text-violet-400 hover:text-violet-300">
-              Entrar
+              {t('auth.register.signIn')}
             </Link>
           </div>
         </div>

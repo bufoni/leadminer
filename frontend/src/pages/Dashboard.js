@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../lib/api';
@@ -12,6 +13,7 @@ import { Link } from 'react-router-dom';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [stats, setStats] = useState(null);
   const [searches, setSearches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +33,7 @@ const Dashboard = () => {
       setStats(statsRes.data);
       setSearches(searchesRes.data.slice(0, 5));
     } catch (error) {
-      toast.error('Erro ao carregar dados');
+      toast.error(t('dashboard.loadError'));
     } finally {
       setLoading(false);
     }
@@ -48,20 +50,15 @@ const Dashboard = () => {
   };
 
   const getStatusText = (status) => {
-    const text = {
-      queued: 'Na fila',
-      running: 'Processando',
-      finished: 'Concluído',
-      failed: 'Falhou'
-    };
-    return text[status] || status;
+    const key = { queued: 'statusQueued', running: 'statusRunning', finished: 'statusFinished', failed: 'statusFailed' }[status];
+    return key ? t(`dashboard.${key}`) : status;
   };
 
   if (loading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-gray-900 dark:text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">{t('common.loading')}</div>
         </div>
       </DashboardLayout>
     );
@@ -71,8 +68,8 @@ const Dashboard = () => {
     <DashboardLayout>
       <SectionContainer className="py-8 md:py-10">
         <div className="mb-8">
-          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400">Bem-vindo de volta, {user?.name}!</p>
+          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">{t('dashboard.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t('dashboard.welcomeBack', { name: user?.name })}</p>
         </div>
 
         {/* Stats Grid */}
@@ -84,7 +81,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_leads || 0}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Total de Leads</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalLeads')}</div>
           </Card>
 
           <Card data-testid="stat-leads-used" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
@@ -94,7 +91,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.leads_used || 0}/{stats?.leads_limit || 0}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Leads Usados</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.leadsUsed')}</div>
           </Card>
 
           <Card data-testid="stat-total-searches" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
@@ -104,7 +101,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{stats?.total_searches || 0}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Buscas Realizadas</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.searchesDone')}</div>
           </Card>
 
           <Card data-testid="stat-current-plan" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
@@ -114,7 +111,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="text-2xl md:text-3xl font-bold mb-1 capitalize text-gray-900 dark:text-white">{stats?.plan || 'Trial'}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Plano Atual</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.currentPlan')}</div>
           </Card>
         </div>
 
@@ -123,45 +120,45 @@ const Dashboard = () => {
           <Link to="/search">
             <Button data-testid="quick-action-new-search" className="w-full bg-violet-600 hover:bg-violet-700 text-white h-12">
               <Search className="mr-2 h-4 w-4" />
-              Nova Busca
+              {t('dashboard.newSearch')}
             </Button>
           </Link>
           <Link to="/leads">
             <Button data-testid="quick-action-view-leads" variant="outline" className="w-full border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 h-12">
               <Users className="mr-2 h-4 w-4" />
-              Ver Leads
+              {t('dashboard.viewLeads')}
             </Button>
           </Link>
           <Link to="/analytics">
             <Button data-testid="quick-action-analytics" variant="outline" className="w-full border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 h-12">
               <TrendingUp className="mr-2 h-4 w-4" />
-              Analytics
+              {t('dashboard.analytics')}
             </Button>
           </Link>
           <Link to="/settings">
             <Button data-testid="quick-action-settings" variant="outline" className="w-full border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 h-12">
               <Package className="mr-2 h-4 w-4" />
-              Configurações
+              {t('sidebar.settings')}
             </Button>
           </Link>
         </div>
 
         {/* Recent Searches */}
         <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Buscas Recentes</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">{t('dashboard.recentSearches')}</h2>
           {searches.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhuma busca realizada ainda</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">{t('dashboard.noSearchesYet')}</p>
           ) : (
             <div className="space-y-3">
               {searches.map((search) => (
                 <div
                   key={search.id}
                   data-testid={`search-item-${search.id}`}
-                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5 hover:border-violet-500/30 transition-all"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5 hover:border-violet-500/30 transition-all"
                 >
                   <div className="flex-1">
-                    <div className="font-medium mb-1 flex items-center gap-2 flex-wrap text-gray-900 dark:text-white">
-                      {search.keywords.join(', ') || 'Sem palavras-chave'}
+                    <div className="font-medium mb-1 flex items-center gap-2 flex-wrap text-gray-900 dark:text-white break-words">
+                      {search.keywords.join(', ') || t('dashboard.noKeywords')}
                       {search.platform === 'tiktok' ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-gray-300 dark:border-white/10 text-gray-500 dark:text-gray-400">
                           <PlatformLogo platform="tiktok" className="h-3 w-3" /> TikTok
@@ -176,8 +173,8 @@ const Dashboard = () => {
                       {search.hashtags.length > 0 && `#${search.hashtags.join(' #')}`}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-sm text-gray-500 dark:text-gray-400">{search.leads_found} leads</div>
+                  <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">{search.leads_found} {t('dashboard.leadsCount')}</div>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(search.status)}`}>
                       {getStatusText(search.status)}
                     </span>
@@ -192,7 +189,7 @@ const Dashboard = () => {
           {searches.length > 0 && (
             <Link to="/searches">
               <Button variant="ghost" className="w-full mt-4 text-violet-400 hover:text-violet-300">
-                Ver Todas as Buscas
+                {t('dashboard.viewAllSearches')}
               </Button>
             </Link>
           )}

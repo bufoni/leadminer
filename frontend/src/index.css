@@ -1,5 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
+/* Fonts loaded via index.html preload + link for faster LCP */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,18 +9,26 @@
     --radius: 8px;
   }
 
-  * {
-    @apply border-white/5;
-  }
   body {
-    @apply bg-[#030712] text-slate-50 font-sans;
-    font-family: 'DM Sans', sans-serif;
-    /* Body: 16-18px */
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     font-size: clamp(1rem, 0.95rem + 0.3vw, 1.125rem);
     line-height: 1.6;
+    @apply font-sans bg-gray-50 text-gray-900;
+  }
+  html.dark body {
+    @apply bg-[#030712] text-slate-50;
+  }
+  html, body, #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  img, svg, video, canvas {
+    max-width: 100%;
+    height: auto;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   }
   /* Typography scale */
   h1 {
@@ -57,7 +64,11 @@
 }
 
 @layer utilities {
+  /* Light: darker shades for contrast on white; dark: same gradient works on dark bg */
   .text-gradient {
-    @apply bg-gradient-to-r from-violet-400 to-fuchsia-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-violet-600 to-fuchsia-600 bg-clip-text text-transparent;
+  }
+  html.dark .text-gradient {
+    @apply from-violet-400 to-fuchsia-400;
   }
 }

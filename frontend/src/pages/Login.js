@@ -68,13 +68,18 @@ const Login = () => {
         <div className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-white/5 rounded-lg p-8 shadow-sm dark:shadow-none backdrop-blur-sm">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-4">
-              <img 
-                src="https://static.prod-images.emergentagent.com/jobs/303cf839-62ca-4b43-8c31-9c5fe9bec8e9/images/64a5a31919abdae9ff3732c8bdff9a51f971ae3cb297e25197ec7ab583a76e76.png" 
-                alt="LeadMiner Logo" 
-                className="w-16 h-16"
+              <img
+                src="https://static.prod-images.emergentagent.com/jobs/303cf839-62ca-4b43-8c31-9c5fe9bec8e9/images/64a5a31919abdae9ff3732c8bdff9a51f971ae3cb297e25197ec7ab583a76e76.png"
+                alt="LeadMiner Logo"
+                className="w-16 h-16 object-contain"
+                width={64}
+                height={64}
+                loading="eager"
+                decoding="async"
+                fetchPriority="high"
               />
             </div>
-            <h1 className="text-3xl font-bold text-gradient mb-2">LeadMiner</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gradient mb-2">LeadMiner</h1>
             <p className="text-gray-600 dark:text-gray-400">{t('auth.login.title')}</p>
           </div>
 
@@ -119,10 +124,10 @@ const Login = () => {
 
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-700"></div>
+              <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gray-900/50 text-gray-400">{t('auth.login.continueWithEmail')}</span>
+              <span className="px-2 bg-white dark:bg-gray-900/50 text-gray-500 dark:text-gray-400">{t('auth.login.continueWithEmail')}</span>
             </div>
           </div>
 
@@ -136,7 +141,7 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-gray-950/50 border-gray-800 text-white"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -149,7 +154,7 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="bg-gray-950/50 border-gray-800 text-white"
+                className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
               />
             </div>
 
@@ -170,7 +175,7 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-gray-400">
+          <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
             {t('auth.login.noAccount')}{' '}
             <Link to="/register" className="text-violet-400 hover:text-violet-300">
               {t('auth.login.signUp')}

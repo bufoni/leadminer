@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bell, Check, CheckCheck, X, ExternalLink } from 'lucide-react';
 import api from '../lib/api';
 
 export default function NotificationDropdown() {
+  const { t } = useTranslation();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -112,17 +114,17 @@ export default function NotificationDropdown() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-[#0f1629] rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-[min(92vw,24rem)] sm:w-96 bg-white dark:bg-[#0f1629] rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-[#131b2e]">
             <h3 className="font-semibold text-gray-900 dark:text-white">Notificações</h3>
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                className="text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1"
               >
                 <CheckCheck className="w-4 h-4" />
-                Marcar todas como lidas
+                {t('notifications.markAllRead')}
               </button>
             )}
           </div>
@@ -130,14 +132,14 @@ export default function NotificationDropdown() {
           {/* Notifications List */}
           <div className="max-h-96 overflow-y-auto">
             {loading && notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <div className="animate-spin w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-                Carregando...
+                {t('notifications.loading')}
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <Bell className="w-12 h-12 mx-auto mb-2 text-gray-600" />
-                <p>Nenhuma notificação</p>
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                <Bell className="w-12 h-12 mx-auto mb-2 text-gray-500 dark:text-gray-500" />
+                <p>{t('notifications.none')}</p>
               </div>
             ) : (
               notifications.map((notification) => (
@@ -163,13 +165,13 @@ export default function NotificationDropdown() {
                         {notification.message}
                       </p>
                       <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                           {formatDate(notification.created_at)}
                         </span>
                         {notification.data?.search_id && (
                           <a
                             href={`/searches`}
-                            className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                            className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 flex items-center gap-1"
                             onClick={(e) => e.stopPropagation()}
                           >
                             Ver detalhes

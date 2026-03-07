@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
@@ -10,6 +11,7 @@ import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Cart
 
 const Analytics = () => {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [overview, setOverview] = useState(null);
   const [timeline, setTimeline] = useState([]);
   const [funnel, setFunnel] = useState([]);
@@ -33,7 +35,7 @@ const Analytics = () => {
       setFunnel(funnelRes.data);
       setSourceBreakdown(sourceRes.data);
     } catch (error) {
-      toast.error('Erro ao carregar analytics');
+      toast.error(t('analytics.loadError'));
     } finally {
       setLoading(false);
     }
@@ -45,7 +47,7 @@ const Analytics = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-gray-900 dark:text-white">Carregando analytics...</div>
+          <div className="text-gray-900 dark:text-white">{t('analytics.loading')}</div>
         </div>
       </DashboardLayout>
     );
@@ -55,8 +57,8 @@ const Analytics = () => {
     <DashboardLayout>
       <SectionContainer className="py-8 md:py-10">
         <div className="mb-8">
-          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Analytics Avançado</h1>
-          <p className="text-gray-600 dark:text-gray-400">Insights detalhados sobre seus leads e performance</p>
+          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">{t('analytics.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t('analytics.subtitle')}</p>
         </div>
 
         {/* KPIs */}
@@ -68,8 +70,8 @@ const Analytics = () => {
               </div>
             </div>
             <div className="text-2xl md:text-3xl font-bold mb-1 text-gray-900 dark:text-white">{overview?.total_leads || 0}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Total de Leads</div>
-            <div className="text-sm text-emerald-400 mt-2">+{overview?.leads_this_month || 0} este mês</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">{t('analytics.totalLeads')}</div>
+            <div className="text-sm text-emerald-400 mt-2">+{overview?.leads_this_month || 0} {t('analytics.thisMonth')}</div>
           </Card>
 
           <Card data-testid="kpi-conversion" className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">

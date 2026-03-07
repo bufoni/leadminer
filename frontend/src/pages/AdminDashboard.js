@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Navigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +26,7 @@ import {
 
 const AdminDashboard = () => {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [adminStats, setAdminStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -90,12 +92,12 @@ const AdminDashboard = () => {
         username: accountUsername,
         password: accountPassword
       });
-      toast.success('Conta adicionada');
+      toast.success(t('admin.accountAdded'));
       setAccountUsername('');
       setAccountPassword('');
       fetchAdminData();
     } catch (error) {
-      toast.error('Erro ao adicionar conta');
+      toast.error(t('admin.accountError'));
     } finally {
       setAddingAccount(false);
     }
@@ -104,10 +106,10 @@ const AdminDashboard = () => {
   const deleteAccount = async (id) => {
     try {
       await api.delete(`/scraping-accounts/${id}`);
-      toast.success('Conta removida');
+      toast.success(t('admin.accountRemoved'));
       fetchAdminData();
     } catch (error) {
-      toast.error('Erro ao remover conta');
+      toast.error(t('admin.accountRemoveError'));
     }
   };
 
@@ -121,14 +123,14 @@ const AdminDashboard = () => {
         username: proxyUsername || null,
         password: proxyPassword || null
       });
-      toast.success('Proxy adicionado');
+      toast.success(t('admin.proxyAdded'));
       setProxyHost('');
       setProxyPort('');
       setProxyUsername('');
       setProxyPassword('');
       fetchAdminData();
     } catch (error) {
-      toast.error('Erro ao adicionar proxy');
+      toast.error(t('admin.proxyError'));
     } finally {
       setAddingProxy(false);
     }
@@ -137,10 +139,10 @@ const AdminDashboard = () => {
   const deleteProxy = async (id) => {
     try {
       await api.delete(`/proxies/${id}`);
-      toast.success('Proxy removido');
+      toast.success(t('admin.proxyRemoved'));
       fetchAdminData();
     } catch (error) {
-      toast.error('Erro ao remover proxy');
+      toast.error(t('admin.proxyRemoveError'));
     }
   };
 
@@ -153,7 +155,7 @@ const AdminDashboard = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-gray-900 dark:text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">{t('common.loading')}</div>
         </div>
       </DashboardLayout>
     );
@@ -168,8 +170,8 @@ const AdminDashboard = () => {
               <Shield className="h-5 w-5 text-red-400" />
             </div>
             <div>
-              <h1 className="font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-              <p className="text-gray-600 dark:text-gray-400">Painel de administração do sistema</p>
+              <h1 className="font-bold text-gray-900 dark:text-white">{t('admin.title')} Dashboard</h1>
+              <p className="text-gray-600 dark:text-gray-400">{t('admin.subtitle')}</p>
             </div>
           </div>
         </div>
@@ -252,7 +254,7 @@ const AdminDashboard = () => {
 
             {/* Quick Add Form */}
             <form onSubmit={addAccount} className="mb-4 p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5">
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   data-testid="quick-add-username"
                   value={accountUsername}
@@ -287,7 +289,7 @@ const AdminDashboard = () => {
               {accounts.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-amber-400" />
-                  <p>Nenhuma conta cadastrada</p>
+                  <p>{t('admin.noAccounts')}</p>
                 </div>
               ) : (
                 accounts.map((account) => (
@@ -340,7 +342,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Add Proxy Form */}
-            <form onSubmit={addProxy} className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5">
+            <form onSubmit={addProxy} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 p-3 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5">
               <Input
                 data-testid="admin-proxy-host-input"
                 value={proxyHost}
@@ -365,7 +367,7 @@ const AdminDashboard = () => {
                 placeholder="User (opcional)"
                 className="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm"
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2 sm:col-span-2 lg:col-span-1">
                 <Input
                   type="password"
                   data-testid="admin-proxy-password-input"
@@ -391,7 +393,7 @@ const AdminDashboard = () => {
               {proxies.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                   <Server className="h-8 w-8 mx-auto mb-2 text-fuchsia-400 opacity-50" />
-                  <p>Nenhum proxy cadastrado</p>
+                  <p>{t('admin.noProxies')}</p>
                 </div>
               ) : (
                 proxies.map((proxy) => (
@@ -448,7 +450,7 @@ const AdminDashboard = () => {
           </div>
 
           {recentSearches.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">Nenhuma busca no sistema ainda</p>
+            <p className="text-gray-500 dark:text-gray-400 text-center py-8">{t('admin.noSearches')}</p>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {recentSearches.map((search) => (
@@ -511,7 +513,7 @@ const AdminDashboard = () => {
                 >
                   <div className="flex items-center gap-3">
                     {u.avatar_url ? (
-                      <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                      <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" width={32} height={32} loading="lazy" decoding="async" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center">
                         <span className="text-sm text-violet-400">{u.name?.charAt(0) || '?'}</span>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../lib/api';
@@ -6,10 +7,11 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import PlatformLogo from '../components/PlatformLogo';
 
 const SearchesPage = () => {
+  const { t } = useTranslation();
   const [searches, setSearches] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,7 +26,7 @@ const SearchesPage = () => {
       const response = await api.get('/searches');
       setSearches(response.data);
     } catch (error) {
-      toast.error('Erro ao carregar buscas');
+      toast.error(t('searches.loadError'));
     } finally {
       setLoading(false);
     }
@@ -41,20 +43,15 @@ const SearchesPage = () => {
   };
 
   const getStatusText = (status) => {
-    const text = {
-      queued: 'Na fila',
-      running: 'Processando',
-      finished: 'Concluído',
-      failed: 'Falhou'
-    };
-    return text[status] || status;
+    const key = { queued: 'statusQueued', running: 'statusRunning', finished: 'statusFinished', failed: 'statusFailed' }[status];
+    return key ? t(`dashboard.${key}`) : status;
   };
 
   if (loading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-gray-900 dark:text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">{t('common.loading')}</div>
         </div>
       </DashboardLayout>
     );
@@ -65,10 +62,10 @@ const SearchesPage = () => {
       <SectionContainer className="py-8 md:py-10">
         <div className="mb-8 flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div>
-            <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Buscas</h1>
-            <p className="text-gray-600 dark:text-gray-400">Acompanhe o status de todas as suas buscas</p>
+            <h1 className="font-bold mb-2 text-gray-900 dark:text-white">{t('searches.title')}</h1>
+            <p className="text-gray-600 dark:text-gray-400">{t('searches.subtitle')}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full md:w-auto">
             <Button
               variant="ghost"
               size="sm"
@@ -79,8 +76,8 @@ const SearchesPage = () => {
               <RefreshCw className="h-4 w-4" />
             </Button>
             <Link to="/search">
-              <Button data-testid="new-search-button" className="bg-violet-600 hover:bg-violet-700 text-white">
-                Nova Busca
+              <Button data-testid="new-search-button" className="w-full md:w-auto bg-violet-600 hover:bg-violet-700 text-white">
+                {t('search.title')}
               </Button>
             </Link>
           </div>
@@ -89,10 +86,10 @@ const SearchesPage = () => {
         {searches.length === 0 ? (
           <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-12">
             <div className="text-center">
-              <p className="text-gray-500 dark:text-gray-400 mb-4">Nenhuma busca realizada ainda</p>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">{t('searches.noSearchesYet')}</p>
               <Link to="/search">
                 <Button className="bg-violet-600 hover:bg-violet-700 text-white">
-                  Criar Primeira Busca
+                  {t('searches.createFirst')}
                 </Button>
               </Link>
             </div>
@@ -106,12 +103,12 @@ const SearchesPage = () => {
                 className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6 hover:border-violet-500/30 transition-all"
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <h3 className="font-semibold text-lg">
+                      <h3 className="font-semibold text-lg break-words">
                         {search.keywords.length > 0
                           ? search.keywords.join(', ')
-                          : 'Sem palavras-chave'}
+                          : t('dashboard.noKeywords')}
                       </h3>
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(
@@ -136,7 +133,7 @@ const SearchesPage = () => {
                     {search.location && (
                       <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Localização: {search.location}</p>
                     )}
-                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
                       <span>{search.leads_found} leads encontrados</span>
                       <span>
                         {new Date(search.created_at).toLocaleDateString('pt-BR', {
@@ -150,11 +147,11 @@ const SearchesPage = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
                     {search.status === 'running' && (
-                      <div className="w-32">
+                      <div className="w-full sm:w-32">
                         <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">{search.progress}%</div>
-                        <div className="w-full bg-gray-800 rounded-full h-2">
+                        <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2">
                           <div
                             className="bg-violet-600 h-2 rounded-full transition-all duration-500"
                             style={{ width: `${search.progress}%` }}

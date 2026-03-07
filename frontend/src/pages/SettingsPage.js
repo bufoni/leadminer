@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,6 +16,7 @@ import { Check, Copy, Gift, Users as UsersIcon, ImagePlus, Trash2 } from 'lucide
 const VALID_TABS = ['profile', 'plan', 'billing', 'referral'];
 
 const SettingsPage = () => {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
   const activeTab = VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'profile';
@@ -49,7 +51,7 @@ const SettingsPage = () => {
       const txResponse = await api.get('/payments/transactions');
       setTransactions(txResponse.data || []);
     } catch (error) {
-      toast.error('Erro ao carregar dados');
+      toast.error(t('settings.loadError'));
     } finally {
       setLoading(false);
     }
@@ -61,7 +63,7 @@ const SettingsPage = () => {
       const response = await api.post(`/payments/checkout?plan=${planId}`, { origin });
       window.location.href = response.data.url;
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao processar pagamento');
+      toast.error(error.response?.data?.detail || t('settings.paymentError'));
     }
   };
 
@@ -70,16 +72,15 @@ const SettingsPage = () => {
       const referralLink = `${window.location.origin}/register?ref=${referralStats.code}`;
       try {
         navigator.clipboard.writeText(referralLink);
-        toast.success('Link de indicação copiado!');
+        toast.success(t('settings.linkCopied'));
       } catch (error) {
-        // Fallback for browsers that don't support clipboard
         const textArea = document.createElement('textarea');
         textArea.value = referralLink;
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        toast.success('Link de indicação copiado!');
+        toast.success(t('settings.linkCopied'));
       }
     }
   };
@@ -88,7 +89,7 @@ const SettingsPage = () => {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 2 * 1024 * 1024) {
-        toast.error('Imagem muito grande. Máximo 2MB.');
+        toast.error(t('settings.imageTooBig'));
         return;
       }
       const reader = new FileReader();
@@ -110,7 +111,7 @@ const SettingsPage = () => {
       setAvatarPreview(null);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao atualizar foto.');
+      toast.error(error.response?.data?.detail || t('settings.photoError'));
     } finally {
       setUploadingAvatar(false);
     }
@@ -125,7 +126,7 @@ const SettingsPage = () => {
       if (avatarInputRef.current) avatarInputRef.current.value = '';
       toast.success('Foto de perfil removida.');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao remover foto.');
+      toast.error(error.response?.data?.detail || t('settings.photoRemoveError'));
     } finally {
       setRemovingAvatar(false);
     }
@@ -134,11 +135,11 @@ const SettingsPage = () => {
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (newPassword.length < 6) {
-      toast.error('A nova senha deve ter no mínimo 6 caracteres');
+      toast.error(t('settings.passwordMin'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('A confirmação da senha não confere');
+      toast.error(t('settings.passwordMismatch'));
       return;
     }
     setChangingPassword(true);
@@ -147,12 +148,12 @@ const SettingsPage = () => {
         current_password: currentPassword,
         new_password: newPassword
       });
-      toast.success('Senha alterada com sucesso');
+      toast.success(t('settings.passwordSuccess'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Erro ao alterar senha');
+      toast.error(error.response?.data?.detail || t('settings.passwordError'));
     } finally {
       setChangingPassword(false);
     }
@@ -162,7 +163,7 @@ const SettingsPage = () => {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-screen">
-          <div className="text-gray-900 dark:text-white">Carregando...</div>
+          <div className="text-gray-900 dark:text-white">{t('common.loading')}</div>
         </div>
       </DashboardLayout>
     );
@@ -173,27 +174,27 @@ const SettingsPage = () => {
       <SectionContainer className="py-8 md:py-10">
       <div className="max-w-5xl mx-auto">
         <div className="mb-8">
-          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">Configurações</h1>
-          <p className="text-gray-600 dark:text-gray-400">Gerencie seu plano, perfil e histórico</p>
+          <h1 className="font-bold mb-2 text-gray-900 dark:text-white">{t('settings.title')}</h1>
+          <p className="text-gray-600 dark:text-gray-400">{t('settings.subtitle')}</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v })} className="space-y-6">
-          <TabsList className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-white/5">
-            <TabsTrigger data-testid="tab-profile" value="profile">Perfil</TabsTrigger>
-            <TabsTrigger data-testid="tab-plan" value="plan">Plano</TabsTrigger>
-            <TabsTrigger data-testid="tab-billing" value="billing">Histórico</TabsTrigger>
-            <TabsTrigger data-testid="tab-referral" value="referral">Indicação</TabsTrigger>
+          <TabsList className="grid grid-cols-2 md:grid-cols-4 h-auto bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-white/5">
+            <TabsTrigger data-testid="tab-profile" value="profile" className="w-full">{t('settings.tabs.profile')}</TabsTrigger>
+            <TabsTrigger data-testid="tab-plan" value="plan" className="w-full">{t('settings.tabs.plan')}</TabsTrigger>
+            <TabsTrigger data-testid="tab-billing" value="billing" className="w-full">{t('settings.tabBilling')}</TabsTrigger>
+            <TabsTrigger data-testid="tab-referral" value="referral" className="w-full">{t('settings.tabs.referral')}</TabsTrigger>
           </TabsList>
 
           {/* Plan Tab */}
           <TabsContent value="plan">
             <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6 mb-6">
-              <h2 className="text-2xl font-semibold mb-4">Plano Atual</h2>
-              <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-semibold mb-4 text-gray-900 dark:text-white">{t('settings.planTitle')}</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                 <div>
-                  <div className="text-3xl font-bold capitalize mb-2">{user?.plan}</div>
+                  <div className="text-3xl font-bold capitalize mb-2 text-gray-900 dark:text-white">{user?.plan}</div>
                   <div className="text-gray-500 dark:text-gray-400">
-                    {user?.leads_used || 0} / {user?.leads_limit || 0} leads usados
+                    {user?.leads_used || 0} / {user?.leads_limit || 0} {t('settings.leadsUsed')}
                   </div>
                 </div>
               </div>
@@ -208,16 +209,16 @@ const SettingsPage = () => {
                     user?.plan === planId ? 'border-violet-500/50' : 'border-gray-200 dark:border-white/5'
                   }`}
                 >
-                  <h3 className="text-xl font-semibold mb-2">{plan.name}</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">{plan.name}</h3>
                   <div className="mb-4">
-                    <span className="text-3xl font-bold">R${plan.price}</span>
+                    <span className="text-3xl font-bold text-gray-900 dark:text-white">R${plan.price}</span>
                     {plan.price > 0 && <span className="text-gray-500 dark:text-gray-400">/mês</span>}
                   </div>
-                  <div className="text-gray-500 dark:text-gray-400 mb-4">{plan.leads_limit} leads/mês</div>
+                  <div className="text-gray-500 dark:text-gray-400 mb-4">{plan.leads_limit} {t('settings.leadsPerMonth')}</div>
                   {user?.plan === planId ? (
                     <Button disabled className="w-full bg-emerald-600/20 text-emerald-400">
                       <Check className="mr-2 h-4 w-4" />
-                      Plano Ativo
+                      {t('settings.planActive')}
                     </Button>
                   ) : (
                     plan.price > 0 && (
@@ -226,7 +227,7 @@ const SettingsPage = () => {
                         onClick={() => handleUpgrade(planId)}
                         className="w-full bg-violet-600 hover:bg-violet-700 text-white"
                       >
-                        Fazer Upgrade
+                        {t('settings.upgrade')}
                       </Button>
                     )
                   )}
@@ -243,15 +244,15 @@ const SettingsPage = () => {
                   <Gift className="h-6 w-6 text-violet-400" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-semibold">Programa de Indicação</h2>
+                  <h2 className="text-2xl font-semibold">{t('settings.referralProgram')}</h2>
                   <p className="text-gray-500 dark:text-gray-400 text-sm">Ganhe 20% de desconto para cada amigo que se cadastrar</p>
                 </div>
               </div>
 
-              <div className="bg-gray-950/50 rounded-lg p-6 mb-6">
+              <div className="bg-gray-50 dark:bg-gray-950/50 rounded-lg p-6 mb-6 border border-gray-200 dark:border-white/5">
                 <div className="mb-4">
                   <Label className="text-gray-500 dark:text-gray-400 text-sm mb-2 block">Seu link de indicação</Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       data-testid="referral-link-input"
                       value={`${window.location.origin}/register?ref=${referralStats?.code || ''}`}
@@ -268,13 +269,13 @@ const SettingsPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-6">
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-white/5">
                     <div className="flex items-center gap-2 mb-2">
                       <UsersIcon className="h-5 w-5 text-blue-400" />
                       <span className="text-gray-500 dark:text-gray-400 text-sm">Total Indicados</span>
                     </div>
-                    <div className="text-3xl font-bold">{referralStats?.total_referrals || 0}</div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">{referralStats?.total_referrals || 0}</div>
                   </div>
 
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-white/5">
@@ -282,7 +283,7 @@ const SettingsPage = () => {
                       <Check className="h-5 w-5 text-emerald-400" />
                       <span className="text-gray-500 dark:text-gray-400 text-sm">Conversões</span>
                     </div>
-                    <div className="text-3xl font-bold">{referralStats?.successful_conversions || 0}</div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">{referralStats?.successful_conversions || 0}</div>
                   </div>
 
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-white/5">
@@ -290,7 +291,7 @@ const SettingsPage = () => {
                       <Gift className="h-5 w-5 text-violet-400" />
                       <span className="text-gray-500 dark:text-gray-400 text-sm">Seu Desconto</span>
                     </div>
-                    <div className="text-3xl font-bold">
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
                       {referralStats?.discount_available ? '20%' : '0%'}
                     </div>
                   </div>
@@ -320,19 +321,23 @@ const SettingsPage = () => {
           {/* Profile Tab */}
           <TabsContent value="profile">
             <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
-              <h2 className="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">Perfil</h2>
+              <h2 className="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">{t('settings.tabs.profile')}</h2>
               
               <div className="space-y-6">
                 {/* Avatar Upload */}
                 <div>
-                  <Label className="text-gray-500 dark:text-gray-400 text-sm mb-3 block">Foto de Perfil</Label>
+                  <Label className="text-gray-500 dark:text-gray-400 text-sm mb-3 block">{t('settings.profileTitle')}</Label>
                   <div className="flex flex-wrap items-start gap-6">
                     <div className="relative shrink-0">
                       {(avatarPreview || user?.avatar_url) ? (
-                        <img 
-                          src={avatarPreview || user.avatar_url} 
-                          alt="Sua foto de perfil" 
+                        <img
+                          src={avatarPreview || user.avatar_url}
+                          alt="Sua foto de perfil"
                           className="w-24 h-24 rounded-full object-cover border-2 border-violet-500 ring-2 ring-gray-200 dark:ring-gray-700"
+                          width={96}
+                          height={96}
+                          loading="lazy"
+                          decoding="async"
                         />
                       ) : (
                         <div className="w-24 h-24 rounded-full bg-violet-500/20 flex items-center justify-center border-2 border-violet-500 ring-2 ring-gray-200 dark:ring-gray-700">
@@ -360,7 +365,7 @@ const SettingsPage = () => {
                             className="border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer inline-flex items-center gap-2"
                           >
                             <ImagePlus className="h-4 w-4" />
-                            Trocar foto
+                            {t('settings.changePhoto')}
                           </Button>
                         </label>
                         {(user?.avatar_url || avatarPreview) && (
@@ -373,7 +378,7 @@ const SettingsPage = () => {
                             data-testid="remove-avatar-button"
                           >
                             <Trash2 className="h-4 w-4" />
-                            {removingAvatar ? 'Removendo...' : 'Remover foto'}
+                            {removingAvatar ? t('settings.removingPhoto') : t('settings.removePhoto')}
                           </Button>
                         )}
                       </div>
@@ -385,18 +390,18 @@ const SettingsPage = () => {
                             disabled={uploadingAvatar}
                             className="bg-violet-600 hover:bg-violet-700 text-white"
                           >
-                            {uploadingAvatar ? 'Salvando...' : 'Salvar foto'}
+                            {uploadingAvatar ? t('leads.savingPhoto') : t('settings.savePhoto')}
                           </Button>
                           <Button
                             variant="outline"
                             onClick={() => { setAvatarPreview(null); if (avatarInputRef.current) avatarInputRef.current.value = ''; }}
                             className="border-gray-300 dark:border-white/10 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/5"
                           >
-                            Cancelar
+                            {t('common.cancel')}
                           </Button>
                         </div>
                       )}
-                      <p className="text-xs text-gray-500 dark:text-gray-400">JPG, PNG ou GIF. Máximo 2MB.</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('settings.photoHint')}</p>
                     </div>
                   </div>
                 </div>
@@ -404,29 +409,29 @@ const SettingsPage = () => {
                 {/* User Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200 dark:border-white/5">
                   <div>
-                    <Label className="text-gray-500 dark:text-gray-400 text-sm">Nome</Label>
+                    <Label className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.name')}</Label>
                     <div className="mt-2 text-gray-900 dark:text-white">{user?.name}</div>
                   </div>
                   <div>
-                    <Label className="text-gray-500 dark:text-gray-400 text-sm">Email</Label>
+                    <Label className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.email')}</Label>
                     <div className="mt-2 text-gray-900 dark:text-white">{user?.email}</div>
                   </div>
                   <div>
-                    <Label className="text-gray-500 dark:text-gray-400 text-sm">Plano Atual</Label>
+                    <Label className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.planTitle')}</Label>
                     <div className="mt-2 text-gray-900 dark:text-white capitalize">{user?.plan}</div>
                   </div>
                   <div>
-                    <Label className="text-gray-500 dark:text-gray-400 text-sm">Função</Label>
+                    <Label className="text-gray-500 dark:text-gray-400 text-sm">{t('settings.role')}</Label>
                     <div className="mt-2 text-gray-900 dark:text-white capitalize">{user?.role}</div>
                   </div>
                 </div>
 
                 {/* Change Password */}
                 <form onSubmit={handleChangePassword} className="pt-6 mt-6 border-t border-gray-200 dark:border-white/5 space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Alterar senha</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('settings.changePassword')}</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="current-password">Senha atual</Label>
+                      <Label htmlFor="current-password">{t('settings.currentPassword')}</Label>
                       <Input
                         id="current-password"
                         type="password"
@@ -435,13 +440,13 @@ const SettingsPage = () => {
                         onChange={(e) => setCurrentPassword(e.target.value)}
                         placeholder="Digite sua senha atual"
                         required
-                        className="bg-gray-950/50 border-gray-800 text-white"
+                        className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="new-password">Nova senha</Label>
+                      <Label htmlFor="new-password">{t('settings.newPassword')}</Label>
                       <Input
                         id="new-password"
                         type="password"
@@ -451,11 +456,11 @@ const SettingsPage = () => {
                         placeholder="Mínimo 6 caracteres"
                         required
                         minLength={6}
-                        className="bg-gray-950/50 border-gray-800 text-white"
+                        className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+                      <Label htmlFor="confirm-password">{t('settings.confirmNewPassword')}</Label>
                       <Input
                         id="confirm-password"
                         type="password"
@@ -465,7 +470,7 @@ const SettingsPage = () => {
                         placeholder="Repita a nova senha"
                         required
                         minLength={6}
-                        className="bg-gray-950/50 border-gray-800 text-white"
+                        className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white"
                       />
                     </div>
                   </div>
@@ -475,7 +480,7 @@ const SettingsPage = () => {
                     disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
                     className="bg-violet-600 hover:bg-violet-700 text-white"
                   >
-                    {changingPassword ? 'Alterando...' : 'Alterar senha'}
+                    {changingPassword ? t('settings.changingPassword') : t('settings.changePassword')}
                   </Button>
                 </form>
               </div>
@@ -484,12 +489,12 @@ const SettingsPage = () => {
 
           {/* Billing History Tab */}
           <TabsContent value="billing">
-            <Card className="bg-gray-900/50 border-white/5 p-6">
-              <h2 className="text-2xl font-semibold mb-6">Histórico de Cobranças</h2>
+            <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 p-6">
+              <h2 className="text-2xl font-semibold mb-6 text-gray-900 dark:text-white">{t('settings.billingHistory')}</h2>
               
               {transactions.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-gray-400">Nenhuma cobrança ainda</p>
+                  <p className="text-gray-500 dark:text-gray-400">{t('settings.noCharges')}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -497,13 +502,13 @@ const SettingsPage = () => {
                     <div
                       key={tx.id}
                       data-testid={`transaction-${tx.id}`}
-                      className="flex items-center justify-between p-4 bg-gray-950/50 rounded-lg border border-white/5"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gray-50 dark:bg-gray-950/50 rounded-lg border border-gray-200 dark:border-white/5"
                     >
                       <div className="flex-1">
-                        <div className="font-medium text-white mb-1">
-                          Plano {tx.plan.charAt(0).toUpperCase() + tx.plan.slice(1)}
+                        <div className="font-medium text-gray-900 dark:text-white mb-1">
+                          {t('settings.planLabel')} {tx.plan.charAt(0).toUpperCase() + tx.plan.slice(1)}
                         </div>
-                        <div className="text-sm text-gray-400">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
                           {new Date(tx.created_at).toLocaleDateString('pt-BR', {
                             day: '2-digit',
                             month: 'long',
@@ -511,9 +516,9 @@ const SettingsPage = () => {
                           })}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                         <div className="text-right">
-                          <div className="font-semibold text-white">
+                          <div className="font-semibold text-gray-900 dark:text-white">
                             R$ {tx.amount.toFixed(2)}
                           </div>
                           {tx.discount_percent > 0 && (

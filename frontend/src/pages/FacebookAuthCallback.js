@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { toast } from 'sonner';
@@ -9,6 +10,7 @@ const FacebookAuthCallback = () => {
   const navigate = useNavigate();
   const { updateUser } = useAuth();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ const FacebookAuthCallback = () => {
       const error = searchParams.get('error');
       
       if (error) {
-        toast.error('Autenticação cancelada ou erro no Facebook');
+        toast.error(t('auth.callback.authCanceled'));
         navigate('/login');
         return;
       }
@@ -32,13 +34,13 @@ const FacebookAuthCallback = () => {
       const referralCode = sessionStorage.getItem('facebook_referral_code');
       
       if (!code) {
-        toast.error('Código de autorização não recebido');
+        toast.error(t('auth.callback.noAuthCode'));
         navigate('/login');
         return;
       }
       
       if (!sessionId || sessionId !== state) {
-        toast.error('Sessão inválida ou expirada');
+        toast.error(t('auth.callback.sessionExpired'));
         navigate('/login');
         return;
       }
@@ -63,18 +65,16 @@ const FacebookAuthCallback = () => {
       sessionStorage.removeItem('facebook_session_id');
       sessionStorage.removeItem('facebook_referral_code');
 
-      // Show success message
       if (is_new) {
-        toast.success('Conta criada com sucesso! Bem-vindo ao LeadMiner!');
+        toast.success(t('auth.callback.accountCreated'));
       } else {
-        toast.success('Login realizado com sucesso!');
+        toast.success(t('auth.callback.loginSuccess'));
       }
 
-      // Redirect to dashboard
       navigate('/dashboard');
     } catch (error) {
       console.error('Facebook auth callback error:', error);
-      toast.error('Erro ao processar autenticação. Tente novamente.');
+      toast.error(t('auth.callback.authError'));
       navigate('/login');
     } finally {
       setProcessing(false);
@@ -82,11 +82,11 @@ const FacebookAuthCallback = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#030712] flex items-center justify-center">
+    <div className="min-h-screen bg-gray-50 dark:bg-[#030712] flex items-center justify-center">
       <div className="text-center">
         <Loader2 className="h-12 w-12 animate-spin text-[#1877F2] mx-auto mb-4" />
-        <p className="text-white text-lg">Processando autenticação do Facebook...</p>
-        <p className="text-gray-400 text-sm mt-2">Por favor, aguarde</p>
+        <p className="text-gray-900 dark:text-white text-lg">{t('auth.callback.processing')}</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">{t('auth.callback.pleaseWait')}</p>
       </div>
     </div>
   );

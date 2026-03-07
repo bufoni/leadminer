@@ -1,31 +1,45 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { Toaster } from './components/ui/sonner';
-import Landing from './pages/Landing';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import GoogleAuthCallback from './pages/GoogleAuthCallback';
-import FacebookAuthCallback from './pages/FacebookAuthCallback';
-import Dashboard from './pages/Dashboard';
-import SearchPage from './pages/SearchPage';
-import SearchesPage from './pages/SearchesPage';
-import LeadsPage from './pages/LeadsPage';
-import SettingsPage from './pages/SettingsPage';
-import Analytics from './pages/Analytics';
-import AdminDashboard from './pages/AdminDashboard';
 import api from './lib/api';
 import { toast } from 'sonner';
 import './App.css';
 
+// Code splitting: lazy load all page components for smaller initial bundle and better LCP
+const Landing = lazy(() => import('./pages/Landing'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const GoogleAuthCallback = lazy(() => import('./pages/GoogleAuthCallback'));
+const FacebookAuthCallback = lazy(() => import('./pages/FacebookAuthCallback'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+const SearchesPage = lazy(() => import('./pages/SearchesPage'));
+const LeadsPage = lazy(() => import('./pages/LeadsPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+
+/** Fallback with reserved height to avoid CLS when lazy chunks load */
+function PageFallback() {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center bg-gray-50 dark:bg-[#030712]" aria-label={t('common.loading')}>
+      <div className="text-gray-500 dark:text-gray-400">{t('common.loading')}</div>
+    </div>
+  );
+}
+
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const { t } = useTranslation();
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#030712] flex items-center justify-center">
-        <div className="text-gray-900 dark:text-white">Carregando...</div>
+        <div className="text-gray-900 dark:text-white">{t('common.loading')}</div>
       </div>
     );
   }
@@ -35,11 +49,12 @@ const PrivateRoute = ({ children }) => {
 
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
+  const { t } = useTranslation();
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#030712] flex items-center justify-center">
-        <div className="text-gray-900 dark:text-white">Carregando...</div>
+        <div className="text-gray-900 dark:text-white">{t('common.loading')}</div>
       </div>
     );
   }
@@ -51,6 +66,7 @@ const PaymentSuccessHandler = () => {
   const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('session_id');
   const { updateUser } = useAuth();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (sessionId) {
@@ -64,7 +80,7 @@ const PaymentSuccessHandler = () => {
 
     const poll = async () => {
       if (attempts >= maxAttempts) {
-        toast.error('Tempo limite de verificação excedido');
+        toast.error(t('app.payment.timeout'));
         return;
       }
 
@@ -72,24 +88,23 @@ const PaymentSuccessHandler = () => {
         const response = await api.get(`/payments/status/${sessionId}`);
         
         if (response.data.payment_status === 'paid') {
-          toast.success('Pagamento confirmado! Seu plano foi atualizado.');
-          // Refresh user data
+          toast.success(t('app.payment.success'));
           const userResponse = await api.get('/auth/me');
           updateUser(userResponse.data);
           return;
         } else if (response.data.status === 'expired') {
-          toast.error('Sessão de pagamento expirada');
+          toast.error(t('app.payment.expired'));
           return;
         }
 
         attempts++;
         setTimeout(poll, 2000);
       } catch (error) {
-        toast.error('Erro ao verificar pagamento');
+        toast.error(t('app.payment.error'));
       }
     };
 
-    toast.info('Verificando pagamento...');
+    toast.info(t('app.payment.verifying'));
     poll();
   };
 
@@ -112,6 +127,7 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
+        <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route
@@ -195,6 +211,7 @@ function App() {
             }
           />
         </Routes>
+        </Suspense>
         <AppToaster />
       </BrowserRouter>
       </AuthProvider>
