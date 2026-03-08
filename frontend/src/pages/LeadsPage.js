@@ -19,11 +19,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '../components/ui/label';
 import { SectionContainer } from '../components/ui/section-container';
 import { toast } from 'sonner';
-import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2, RefreshCw, TrendingUp, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Search, ExternalLink, Edit2, Sparkles, Copy, Loader2, RefreshCw, TrendingUp, MoreHorizontal, ChevronLeft, ChevronRight, MapPin, Globe, Mail, Phone } from 'lucide-react';
 import PlatformLogo from '../components/PlatformLogo';
 import { ScoreWithTooltip, ScoreStatsSummary } from '../components/LeadScore';
 
 const PAGE_SIZE = 10;
+
+function ProfilePhoto({ lead }) {
+  const src = lead.profile_image_url || lead.profile_picture || lead.avatar_url;
+  const initial = (lead.name || lead.username || '?').charAt(0).toUpperCase();
+  const [imgError, setImgError] = useState(false);
+  if (src && !imgError) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="w-10 h-10 rounded-full object-cover bg-gray-200 dark:bg-gray-700"
+        width={40}
+        height={40}
+        loading="lazy"
+        decoding="async"
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+  return (
+    <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold text-sm shrink-0">
+      {initial}
+    </div>
+  );
+}
 
 function buildCSVFromLeads(leads) {
   const headers = ['username', 'name', 'bio', 'followers', 'city', 'email', 'phone', 'profile_url'];
@@ -44,7 +69,7 @@ const LeadsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [qualificationFilter, setQualificationFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('score');
+  const [sortBy, setSortBy] = useState('created_at');
   const [editingLead, setEditingLead] = useState(null);
   const [editNotes, setEditNotes] = useState('');
   const [aiMessageLead, setAiMessageLead] = useState(null);
@@ -53,7 +78,7 @@ const LeadsPage = () => {
   const [scoreStats, setScoreStats] = useState(null);
   const [recalculating, setRecalculating] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [tableSortKey, setTableSortKey] = useState('score');
+  const [tableSortKey, setTableSortKey] = useState('created_at');
   const [tableSortDir, setTableSortDir] = useState('desc');
   const [page, setPage] = useState(1);
 
@@ -404,15 +429,21 @@ const LeadsPage = () => {
                 <SelectItem value="frio">{t('leads.qualificationCold')}</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={sortBy} onValueChange={(value) => { setSortBy(value); fetchLeads(); }}>
+            <Select value={sortBy} onValueChange={(value) => {
+              setSortBy(value);
+              setTableSortKey(value);
+              setTableSortDir(value === 'username' ? 'asc' : 'desc');
+              setPage(1);
+              fetchLeads();
+            }}>
               <SelectTrigger className="bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
                 <TrendingUp className="mr-2 h-4 w-4" />
                 <SelectValue placeholder={t('leads.sortBy')} />
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
+                <SelectItem value="created_at">{t('leads.sortRecent')}</SelectItem>
                 <SelectItem value="score">{t('leads.sortScore')}</SelectItem>
                 <SelectItem value="followers">{t('leads.sortFollowers')}</SelectItem>
-                <SelectItem value="created_at">{t('leads.sortRecent')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -447,7 +478,139 @@ const LeadsPage = () => {
           </Card>
         ) : (
           <Card className="bg-white dark:bg-gray-900/50 border-gray-200 dark:border-white/5 overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile-first: cards (nome, cidade, contatos em destaque) */}
+            <div className="md:hidden p-4 space-y-4">
+              {paginatedLeads.map((lead) => (
+                <article
+                  key={lead.id}
+                  data-testid={`lead-card-${lead.id}`}
+                  className="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-gray-800/30 p-4 shadow-sm"
+                >
+                  <div className="flex gap-3">
+                    <div className="flex items-start gap-2 shrink-0">
+                      <Checkbox
+                        checked={selectedIds.has(lead.id)}
+                        onCheckedChange={(checked) => toggleSelectOne(lead.id, !!checked)}
+                        aria-label={`Selecionar ${lead.username}`}
+                        className="mt-1 border-gray-400 data-[state=checked]:bg-violet-600 data-[state=checked]:border-violet-600"
+                      />
+                      <ProfilePhoto lead={lead} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <a
+                        href={lead.profile_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-gray-900 dark:text-white hover:text-violet-600 dark:hover:text-violet-400 block truncate"
+                      >
+                        {lead.name || `@${lead.username}`}
+                      </a>
+                      <a
+                        href={lead.profile_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1"
+                      >
+                        @{lead.username}
+                        {lead.platform === 'tiktok' ? <PlatformLogo platform="tiktok" className="h-3 w-3" /> : <PlatformLogo platform="instagram" className="h-3 w-3" />}
+                      </a>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={t('leads.actions')}>
+                          <MoreHorizontal className="h-5 w-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10 min-w-[180px]">
+                        <DropdownMenuItem asChild>
+                          <a href={lead.profile_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                            <ExternalLink className="h-4 w-4" /> Ver perfil
+                          </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => generateAIMessage(lead)}><Sparkles className="h-4 w-4 mr-2" /> Sugerir mensagem</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEditDialog(lead)}><Edit2 className="h-4 w-4 mr-2" /> Notas</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  {/* Cidade — destaque */}
+                  <div className="mt-3 flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                    <MapPin className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" aria-hidden />
+                    <span className="text-sm font-medium">{lead.city || lead.location || '—'}</span>
+                  </div>
+
+                  {lead.bio && (
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 line-clamp-2" title={lead.bio}>
+                      {lead.bio}
+                    </p>
+                  )}
+
+                  {/* Contatos — site, email, telefone (áreas de toque ≥44px) */}
+                  <div className="mt-3 space-y-2">
+                    {lead.website && (
+                      <a
+                        href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 min-h-[44px] py-2.5 px-3 rounded-lg bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-white/10 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 active:bg-violet-100 dark:active:bg-violet-900/30 text-sm font-medium"
+                      >
+                        <Globe className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{lead.website.replace(/^https?:\/\//i, '')}</span>
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0 ml-auto" />
+                      </a>
+                    )}
+                    {lead.email && (
+                      <a
+                        href={`mailto:${lead.email}`}
+                        className="flex items-center gap-2 min-h-[44px] py-2.5 px-3 rounded-lg bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-white/10 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 active:bg-violet-100 dark:active:bg-violet-900/30 text-sm font-medium"
+                      >
+                        <Mail className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{lead.email}</span>
+                      </a>
+                    )}
+                    {lead.phone && (
+                      <a
+                        href={`tel:${lead.phone.replace(/\D/g, '')}`}
+                        className="flex items-center gap-2 min-h-[44px] py-2.5 px-3 rounded-lg bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-white/10 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 active:bg-violet-100 dark:active:bg-violet-900/30 text-sm font-medium"
+                      >
+                        <Phone className="h-4 w-4 shrink-0" />
+                        <span>{lead.phone}</span>
+                      </a>
+                    )}
+                    {!lead.website && !lead.email && !lead.phone && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 py-2">—</p>
+                    )}
+                  </div>
+
+                  {/* Status e qualificação em linha */}
+                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10 flex flex-wrap items-center gap-2">
+                    <Select value={lead.status || 'new'} onValueChange={(v) => updateLeadStatus(lead.id, v)}>
+                      <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[120px] border-gray-200 dark:border-white/10 bg-white dark:bg-gray-800/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10">
+                        <SelectItem value="new">{getStatusText('new')}</SelectItem>
+                        <SelectItem value="contacted">{getStatusText('contacted')}</SelectItem>
+                        <SelectItem value="discarded">{getStatusText('discarded')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={lead.qualification || 'morno'} onValueChange={(v) => updateLeadQualification(lead.id, v)}>
+                      <SelectTrigger className="h-8 text-xs flex-1 min-w-0 max-w-[110px] border-gray-200 dark:border-white/10 bg-white dark:bg-gray-800/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10">
+                        <SelectItem value="quente">{t('leads.qualificationHot')}</SelectItem>
+                        <SelectItem value="morno">{t('leads.qualificationWarm')}</SelectItem>
+                        <SelectItem value="frio">{t('leads.qualificationCold')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {/* Desktop: tabela */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[800px] text-sm text-left">
                 <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-white/10">
                   <tr>
@@ -473,6 +636,8 @@ const LeadsPage = () => {
                     </th>
                     <th className="py-3 px-3 text-gray-500 dark:text-gray-400 font-medium hidden sm:table-cell">{t('leads.city')}</th>
                     <th className="py-3 px-3 text-gray-500 dark:text-gray-400 font-medium hidden sm:table-cell">{t('leads.contact')}</th>
+                    <th className="py-3 px-3 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{t('leads.status')}</th>
+                    <th className="py-3 px-3 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">{t('leads.qualification')}</th>
                     <th className="py-3 px-3 text-gray-500 dark:text-gray-400 font-medium w-12">{t('leads.actions')}</th>
                   </tr>
                 </thead>
@@ -492,21 +657,7 @@ const LeadsPage = () => {
                         />
                       </td>
                       <td className="py-2 px-3">
-                        {(lead.profile_picture || lead.avatar_url) ? (
-                          <img
-                            src={lead.profile_picture || lead.avatar_url}
-                            alt=""
-                            className="w-10 h-10 rounded-full object-cover"
-                            width={40}
-                            height={40}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-400 font-semibold text-sm">
-                            {(lead.name || lead.username || '?').charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                        <ProfilePhoto lead={lead} />
                       </td>
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -525,8 +676,8 @@ const LeadsPage = () => {
                           )}
                         </div>
                       </td>
-                      <td className="py-2 px-3 max-w-[180px] hidden md:table-cell">
-                        <span className="line-clamp-2 text-gray-600 dark:text-gray-400">{lead.bio || '—'}</span>
+                      <td className="py-2 px-3 max-w-[240px] hidden md:table-cell">
+                        <span className="line-clamp-4 text-gray-600 dark:text-gray-400" title={lead.bio || undefined}>{lead.bio || '—'}</span>
                       </td>
                       <td className="py-2 px-3 text-gray-600 dark:text-gray-400 tabular-nums">
                         {lead.followers != null ? Number(lead.followers).toLocaleString() : '—'}
@@ -542,6 +693,30 @@ const LeadsPage = () => {
                         ) : (
                           '—'
                         )}
+                      </td>
+                      <td className="py-2 px-3">
+                        <Select value={lead.status || 'new'} onValueChange={(v) => updateLeadStatus(lead.id, v)}>
+                          <SelectTrigger className="h-8 text-xs border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-gray-900/50 min-w-[100px] max-w-[120px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10">
+                            <SelectItem value="new">{getStatusText('new')}</SelectItem>
+                            <SelectItem value="contacted">{getStatusText('contacted')}</SelectItem>
+                            <SelectItem value="discarded">{getStatusText('discarded')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="py-2 px-3">
+                        <Select value={lead.qualification || 'morno'} onValueChange={(v) => updateLeadQualification(lead.id, v)}>
+                          <SelectTrigger className="h-8 text-xs border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-gray-900/50 min-w-[90px] max-w-[110px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-white/10">
+                            <SelectItem value="quente">{t('leads.qualificationHot')}</SelectItem>
+                            <SelectItem value="morno">{t('leads.qualificationWarm')}</SelectItem>
+                            <SelectItem value="frio">{t('leads.qualificationCold')}</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="py-2 px-3">
                         <DropdownMenu>
@@ -562,19 +737,6 @@ const LeadsPage = () => {
                             <DropdownMenuItem onClick={() => openEditDialog(lead)}>
                               <Edit2 className="h-4 w-4 mr-2" /> Notas
                             </DropdownMenuItem>
-                            <div className="border-t border-gray-200 dark:border-white/10 my-1" />
-                            <span className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400">Status</span>
-                            {['new', 'contacted', 'discarded'].map((s) => (
-                              <DropdownMenuItem key={s} onClick={() => updateLeadStatus(lead.id, s)} data-testid={s === lead.status ? `lead-status-${lead.id}` : undefined}>
-                                {getStatusText(s)} {lead.status === s ? '✓' : ''}
-                              </DropdownMenuItem>
-                            ))}
-                            <span className="px-2 py-1.5 text-xs text-gray-500 dark:text-gray-400 mt-1">Qualificação</span>
-                            {['quente', 'morno', 'frio'].map((q) => (
-                              <DropdownMenuItem key={q} onClick={() => updateLeadQualification(lead.id, q)} data-testid={lead.qualification === q ? `lead-qualification-${lead.id}` : undefined}>
-                                {q} {lead.qualification === q ? '✓' : ''}
-                              </DropdownMenuItem>
-                            ))}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -584,7 +746,7 @@ const LeadsPage = () => {
               </table>
             </div>
 
-            {/* Pagination */}
+            {/* Pagination — visível em mobile e desktop */}
             <div className="flex flex-wrap items-center justify-between gap-4 p-4 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-gray-900/30">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, sortedLeads.length)} de {sortedLeads.length}

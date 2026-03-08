@@ -158,7 +158,11 @@ const Dashboard = () => {
                 >
                   <div className="flex-1">
                     <div className="font-medium mb-1 flex items-center gap-2 flex-wrap text-gray-900 dark:text-white break-words">
-                      {search.keywords.join(', ') || t('dashboard.noKeywords')}
+                      {search.keywords?.length > 0
+                        ? search.keywords.join(', ')
+                        : search.hashtags?.length > 0
+                          ? `#${search.hashtags.join(' #')}`
+                          : t('dashboard.noKeywords')}
                       {search.platform === 'tiktok' ? (
                         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-gray-300 dark:border-white/10 text-gray-500 dark:text-gray-400">
                           <PlatformLogo platform="tiktok" className="h-3 w-3" /> TikTok

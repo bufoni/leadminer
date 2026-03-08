@@ -254,6 +254,8 @@
     "followers": "Followers",
     "city": "City",
     "contact": "Contact",
+    "status": "Status",
+    "qualification": "Qualification",
     "actions": "Actions",
     "save": "Save",
     "cancel": "Cancel",

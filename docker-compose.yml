@@ -1,8 +1,6 @@
 # LeadMiner - Docker Compose para Produção
 # Use com Dokploy ou qualquer orquestrador Docker
 
-version: '3.8'
-
 services:
   # MongoDB Database
   mongodb:
@@ -84,13 +82,13 @@ services:
       timeout: 10s
       retries: 3
 
-  # Frontend (React)
+  # Frontend (React) — Traefik: http://leadminer.localhost (rede proxy compartilhada com o Traefik)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - REACT_APP_BACKEND_URL=${BACKEND_URL:-}
+        REACT_APP_BACKEND_URL: ${BACKEND_URL:-}
     container_name: leadminer-frontend
     restart: always
     depends_on:
@@ -104,8 +102,8 @@ services:
       - "traefik.docker.network=proxy"
       - "traefik.http.routers.leadminer-frontend.rule=Host(`leadminer.localhost`)"
       - "traefik.http.routers.leadminer-frontend.entrypoints=web"
-      - "traefik.http.routers.leadminer-frontend.service=leadminer-frontend-svc"
-      - "traefik.http.services.leadminer-frontend-svc.loadbalancer.server.port=80"
+      - "traefik.http.routers.leadminer-frontend.service=leadminer-frontend"
+      - "traefik.http.services.leadminer-frontend.loadbalancer.server.port=80"
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]

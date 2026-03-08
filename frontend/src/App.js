@@ -22,6 +22,24 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
+function NotFound() {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-[#030712] flex flex-col items-center justify-center px-4">
+      <h1 className="text-6xl font-bold text-gray-900 dark:text-white">404</h1>
+      <p className="mt-2 text-gray-600 dark:text-gray-400">
+        {t('common.pageNotFound', 'Página não encontrada')}
+      </p>
+      <a
+        href="/"
+        className="mt-6 text-primary-600 dark:text-primary-400 hover:underline font-medium"
+      >
+        {t('common.backHome', 'Voltar ao início')}
+      </a>
+    </div>
+  );
+}
+
 /** Fallback with reserved height to avoid CLS when lazy chunks load */
 function PageFallback() {
   const { t } = useTranslation();
@@ -210,6 +228,7 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
         <AppToaster />

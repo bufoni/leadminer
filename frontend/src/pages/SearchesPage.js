@@ -106,9 +106,11 @@ const SearchesPage = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-2 flex-wrap">
                       <h3 className="font-semibold text-lg break-words">
-                        {search.keywords.length > 0
+                        {search.keywords?.length > 0
                           ? search.keywords.join(', ')
-                          : t('dashboard.noKeywords')}
+                          : search.hashtags?.length > 0
+                            ? `#${search.hashtags.join(' #')}`
+                            : t('dashboard.noKeywords')}
                       </h3>
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(

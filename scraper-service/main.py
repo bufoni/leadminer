@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Set
 from playwright.async_api import async_playwright
 import asyncio
 import random
@@ -46,6 +46,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+class _HealthEndpointFilter(logging.Filter):
+    """Filtro que evita registrar GET /health no access log (reduz ruído)."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        # uvicorn.access usa record.args como (client_addr, method, path, ...)
+        if getattr(record, "args", None) and len(record.args) >= 3:
+            path = record.args[2] if isinstance(record.args[2], str) else ""
+            if path.split("?")[0].rstrip("/") == "/health":
+                return False
+        return True
+
+
+# Aplicar ao carregar o módulo (vale para python main.py e uvicorn main:app)
+logging.getLogger("uvicorn.access").addFilter(_HealthEndpointFilter())
+
 app = FastAPI(title="LeadMiner Scraper Service", version="3.0.0")
 
 # Session storage path
@@ -71,6 +86,7 @@ class ScrapeRequest(BaseModel):
     hashtags: List[str] = []
     location: Optional[str] = None  # optional; used when platform supports it
     max_profiles: int = 20
+    exclude_usernames: Optional[List[str]] = None  # leads que o cliente já tem; scraper ignora e continua até achar novos
     accounts: List[AccountConfig] = []
     proxies: List[ProxyConfig] = []
     platform: str = "instagram"  # "instagram" or "tiktok"
@@ -81,9 +97,13 @@ class LeadResult(BaseModel):
     bio: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    website: Optional[str] = None
+    profile_image_url: Optional[str] = None  # URL da foto de perfil
+    location: Optional[str] = None  # cidade/região (extraído da bio ou campo)
     profile_url: str
     followers: Optional[int] = None
     following: Optional[int] = None
+    posts: Optional[int] = None
     likes: Optional[int] = None  # TikTok specific
     videos: Optional[int] = None  # TikTok specific
     source: str = "hashtag"
@@ -331,113 +351,99 @@ class TikTokScraper:
             logger.error(f"Error scraping TikTok profile @{username}: {str(e)}")
             return None
     
-    async def scrape_hashtag(self, hashtag: str, max_profiles: int = 20) -> List[Dict]:
-        """Scrape profiles from a TikTok hashtag (tries discover and tag URLs)."""
+    async def scrape_hashtag(
+        self,
+        hashtag: str,
+        max_profiles: int = 20,
+        exclude_usernames: Optional[Set[str]] = None,
+    ) -> List[Dict]:
+        """Scrape profiles from a TikTok hashtag. Continua até ter max_profiles leads novos (exclui exclude_usernames)."""
         results = []
-        
+        exclude = exclude_usernames or set()
+        scraped_in_run: Set[str] = set()
+        scroll_retries = 5
         try:
             hashtag_clean = hashtag.replace('#', '').strip()
-            # TikTok web: discover is primary; /tag/ still exists for some regions
             urls_to_try = [
                 f"https://www.tiktok.com/discover/{hashtag_clean}",
                 f"https://www.tiktok.com/tag/{hashtag_clean}",
             ]
             url = urls_to_try[0]
-            
-            logger.info(f"Navigating to TikTok hashtag: #{hashtag_clean}")
+            logger.info(f"Navigating to TikTok hashtag: #{hashtag_clean} (exclude={len(exclude)})")
             await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(4, 6)
-            
-            # Scroll to load more content
-            logger.info("Scrolling to load videos...")
-            await self.human_scroll(self.page, times=5)
-            
-            # Extract usernames from video links
-            usernames_found = set()
-            
-            # Get all links
-            links = await self.page.query_selector_all('a[href*="/@"]')
-            logger.info(f"Found {len(links)} profile links")
-            
-            for link in links:
-                if len(usernames_found) >= max_profiles * 2:
+
+            for retry in range(scroll_retries):
+                if len(results) >= max_profiles:
                     break
-                    
-                try:
-                    href = await link.get_attribute('href')
-                    if href and '/@' in href:
-                        # Extract username from URL
-                        match = re.search(r'/@([^/?]+)', href)
-                        if match:
-                            username = match.group(1)
-                            if username and username not in usernames_found:
-                                # Filter out non-usernames
-                                if not any(x in username.lower() for x in ['tag', 'music', 'search', 'foryou', 'following']):
-                                    usernames_found.add(username)
-                                    logger.info(f"Found TikTok username: @{username}")
-                except Exception as e:
-                    continue
-            
-            # If discover had no profile links, try /tag/ URL
-            if not usernames_found and len(urls_to_try) > 1:
-                url = urls_to_try[1]
-                logger.info(f"Trying fallback URL: {url}")
-                await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                await self.human_delay(3, 5)
-                await self.human_scroll(self.page, times=4)
+                logger.info("Scrolling to load videos...")
+                await self.human_scroll(self.page, times=5)
                 links = await self.page.query_selector_all('a[href*="/@"]')
+                if retry == 0 and not links and len(urls_to_try) > 1:
+                    url = urls_to_try[1]
+                    await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                    await self.human_delay(3, 5)
+                    await self.human_scroll(self.page, times=4)
+                    links = await self.page.query_selector_all('a[href*="/@"]')
+
+                usernames_found = set()
                 for link in links:
-                    if len(usernames_found) >= max_profiles * 2:
-                        break
                     try:
                         href = await link.get_attribute('href')
                         if href and '/@' in href:
                             match = re.search(r'/@([^/?]+)', href)
                             if match:
                                 u = match.group(1)
-                                if u and u not in usernames_found and not any(x in u.lower() for x in ['tag', 'music', 'search', 'foryou', 'following']):
+                                if u and not any(x in u.lower() for x in ['tag', 'music', 'search', 'foryou', 'following']):
                                     usernames_found.add(u)
                     except Exception:
                         continue
-            
-            logger.info(f"Collected {len(usernames_found)} unique TikTok usernames")
-            
-            # Scrape each profile
-            for username in list(usernames_found)[:max_profiles]:
-                profile_data = await self.scrape_profile(username)
-                if profile_data:
-                    profile_data['source'] = 'hashtag'
-                    results.append(profile_data)
-                
-                await self.human_delay(3, 6)
-            
+
+                need = max_profiles - len(results)
+                logger.info(f"TikTok #{hashtag_clean} round {retry+1}: {len(usernames_found)} usernames, need {need} more new leads")
+                for username in usernames_found:
+                    if len(results) >= max_profiles:
+                        break
+                    if username in exclude or username in scraped_in_run:
+                        continue
+                    scraped_in_run.add(username)
+                    profile_data = await self.scrape_profile(username)
+                    if profile_data:
+                        profile_data['source'] = 'hashtag'
+                        results.append(profile_data)
+                        logger.info(f"TikTok new lead: @{username} ({len(results)}/{max_profiles})")
+                    await self.human_delay(3, 6)
+
+                if len(results) >= max_profiles:
+                    break
+                if retry < scroll_retries - 1:
+                    await self.human_delay(3, 5)
+
+            logger.info(f"TikTok hashtag #{hashtag_clean}: found {len(results)} leads")
         except Exception as e:
             logger.error(f"Error scraping TikTok hashtag #{hashtag}: {str(e)}")
-        
         return results
     
-    async def scrape_search(self, keyword: str, max_profiles: int = 20) -> List[Dict]:
-        """Scrape profiles from TikTok search results"""
+    async def scrape_search(
+        self,
+        keyword: str,
+        max_profiles: int = 20,
+        exclude_usernames: Optional[Set[str]] = None,
+    ) -> List[Dict]:
+        """Scrape profiles from TikTok search results."""
         results = []
-        
+        exclude = exclude_usernames or set()
         try:
             url = f"https://www.tiktok.com/search/user?q={keyword}"
-            
             logger.info(f"Searching TikTok for: {keyword}")
             await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(4, 6)
-            
-            # Scroll to load more
             await self.human_scroll(self.page, times=3)
-            
-            # Extract usernames
             usernames_found = set()
             links = await self.page.query_selector_all('a[href*="/@"]')
-            
             for link in links:
-                if len(usernames_found) >= max_profiles:
+                if len(usernames_found) >= max_profiles * 2:
                     break
-                    
                 try:
                     href = await link.get_attribute('href')
                     if href and '/@' in href:
@@ -446,21 +452,17 @@ class TikTokScraper:
                             username = match.group(1)
                             if username and username not in usernames_found:
                                 usernames_found.add(username)
-                except:
+                except Exception:
                     continue
-            
-            # Scrape profiles
-            for username in list(usernames_found)[:max_profiles]:
+            new_usernames = [u for u in list(usernames_found) if u not in exclude][:max_profiles]
+            for username in new_usernames:
                 profile_data = await self.scrape_profile(username)
                 if profile_data:
                     profile_data['source'] = 'search'
                     results.append(profile_data)
-                
                 await self.human_delay(3, 6)
-            
         except Exception as e:
             logger.error(f"Error searching TikTok for {keyword}: {str(e)}")
-        
         return results
     
     async def close(self):
@@ -480,6 +482,7 @@ class HumanLikeScraper:
         self.browser = None
         self.context = None
         self.page = None
+        self._last_logged_account: Optional[Dict] = None  # para re-login se hashtag redirecionar para login
     
     def get_next_account(self) -> Optional[Dict]:
         """Get next available account"""
@@ -535,33 +538,97 @@ class HumanLikeScraper:
             pass
     
     def extract_contact_info(self, bio: str) -> Dict[str, Optional[str]]:
-        """Extract email and phone from bio"""
+        """Extract email, phone and website from bio/text. Inclui wa.me como contato."""
         email = None
         phone = None
-        
+        website = None
         if not bio:
-            return {'email': None, 'phone': None}
-        
-        # Email regex
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-        email_match = re.search(email_pattern, bio)
-        if email_match:
-            email = email_match.group(0)
-        
-        # Phone patterns (including Brazilian formats)
+            return {'email': None, 'phone': None, 'website': None}
+        text = bio.strip()
+        # Email
+        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
+        m = re.search(email_pattern, text, re.IGNORECASE)
+        if m:
+            email = m.group(0)
+        # Telefone: (86) 99999-9999, 86999999999, +55 86..., wa.me/5586999999999
         phone_patterns = [
-            r'\+?\d{1,3}?[-.\s]?\(?\d{2,3}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}',
-            r'\(\d{2}\)\s*\d{4,5}-?\d{4}',
-            r'\d{2}\s*\d{4,5}\s*\d{4}',
+            r'[☎\s]*\(?\s*\d{2}\s*\)?\s*[-.\s]*\d{4,5}\s*[-.]?\s*\d{4}',
+            r'(?:\+55\s*)?\(?\s*0?\s*\d{2}\s*\)?\s*[-.\s]*\d{4,5}\s*[-.]?\s*\d{4}',
+            r'\d{2}\s*\d{4,5}[-.\s]?\d{4}',
+            r'\+?\d{1,3}[-.\s]?\(?\d{2,3}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}',
+            r'(?:whatsapp|wa|tel)[:\s]*\(?\d{2}\)?\s*\d{4,5}[-.\s]?\d{4}',
+            r'\b\d{10,11}\b',  # 11999999999 ou 86999999999
         ]
-        
         for pattern in phone_patterns:
-            phone_match = re.search(pattern, bio)
-            if phone_match:
-                phone = phone_match.group(0)
-                break
-        
-        return {'email': email, 'phone': phone}
+            m = re.search(pattern, text, re.IGNORECASE)
+            if m:
+                phone = re.sub(r'\s+', ' ', m.group(0).strip())
+                if len(phone) >= 10:  # evita números curtos tipo "44 posts"
+                    break
+                phone = None
+        # wa.me/5586999999999 ou api.whatsapp.com/send?phone=... → usar como contato (telefone implícito)
+        wa_match = re.search(r'(?:wa\.me/|api\.whatsapp\.com/send\?phone=)(\d{10,14})', text, re.IGNORECASE)
+        if wa_match and not phone:
+            phone = '+' + wa_match.group(1)
+        # Site/link (http/https e short links como abrir.link)
+        url_pattern = r'https?://(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:/[^\s]*)?'
+        short_link = re.search(r'(?:https?://)?(?:[a-zA-Z0-9-]+\.(?:link|page|co|io))/[A-Za-z0-9]+', text)
+        url_match = re.search(url_pattern, text)
+        if url_match:
+            url = url_match.group(0).rstrip('.,;:)')
+            if not any(x in url.lower() for x in ['instagram.com', 'facebook.com', 'twitter.com', 'tiktok.com', 'youtube.com', 'wa.me', 'api.whatsapp']):
+                website = url
+        if not website and short_link:
+            website = short_link.group(0) if short_link.group(0).startswith('http') else 'https://' + short_link.group(0)
+        return {'email': email, 'phone': phone, 'website': website}
+
+    def _extract_location_from_bio(self, bio: str) -> Optional[str]:
+        """Extrai cidade/região da bio. Suporta Floriano-PI, endereços completos, etc."""
+        if not bio or not bio.strip():
+            return None
+        text = bio.strip()
+        # Padrão pin + cidade-estado: "📍Floriano-PI" ou "Floriano-PI" ou "São Paulo-SP"
+        pin_city_state = re.search(
+            r'[📍\s]*([A-Za-zÀ-ÿ\s]+)[-\s]+([A-Za-z]{2})\b',
+            text,
+            re.IGNORECASE
+        )
+        if pin_city_state:
+            city = pin_city_state.group(1).strip()
+            state_abbr = pin_city_state.group(2).strip().upper()
+            if 2 <= len(city) <= 50 and len(state_abbr) == 2 and not city.lower().startswith('http'):
+                state_names = {'PI': 'Piauí', 'SP': 'São Paulo', 'RJ': 'Rio de Janeiro', 'MG': 'Minas Gerais',
+                              'BA': 'Bahia', 'PE': 'Pernambuco', 'CE': 'Ceará', 'RS': 'Rio Grande do Sul',
+                              'PR': 'Paraná', 'SC': 'Santa Catarina', 'GO': 'Goiás', 'AM': 'Amazonas'}
+                state = state_names.get(state_abbr, state_abbr)
+                return f"{city}, {state}"
+        # Endereço completo: "Rua X, 123, Bairro, Cidade, Estado, Brazil CEP"
+        addr = re.search(
+            r',\s*([A-Za-zÀ-ÿ\s]+),\s*([A-Za-zÀ-ÿ\s]+?)(?:,\s*Brazil)?(?:\s+\d{5,8})?\s*$',
+            text,
+            re.MULTILINE | re.IGNORECASE
+        )
+        if addr:
+            city = addr.group(1).strip()
+            state = addr.group(2).strip()
+            if len(city) >= 2 and len(state) >= 2 and not state.isdigit():
+                return f"{city}, {state}"
+        # "Campinas, São Paulo" ou "Floriano, Piaui"
+        city_state = re.search(
+            r'([A-Za-zÀ-ÿ\s]+),\s*([A-Za-zÀ-ÿ\s]{2,30})\s*(?:\d{5})?',
+            text
+        )
+        if city_state:
+            c, s = city_state.group(1).strip(), city_state.group(2).strip()
+            if 2 <= len(c) <= 40 and 2 <= len(s) <= 30 and not c.lower().startswith('http'):
+                return f"{c}, {s}"
+        # Fallback: "em Campinas", "Dentista em Campinas"
+        em = re.search(r'\b(?:em|,)\s+([A-Za-zÀ-ÿ\s]{2,40}?)(?:\s*[-|]\s|\.|$|\n)', text, re.IGNORECASE)
+        if em:
+            loc = em.group(1).strip()
+            if not loc.startswith('http') and not re.search(r'^\d', loc):
+                return loc[:50]
+        return None
     
     async def setup_browser(self, proxy: Optional[Dict] = None):
         """Setup browser with stealth settings"""
@@ -634,110 +701,146 @@ class HumanLikeScraper:
             current_url = self.page.url
             logger.info(f"Current URL: {current_url}")
             
-            # If not on login page, we might be logged in - verify by going to explore
+            # If not on login page, verify with a page that exige login (explore e depois hashtag)
             if '/accounts/login' not in current_url:
-                # Try to access a page that requires login
+                # 1) Explore: às vezes redireciona com atraso, então esperar um pouco após carregar
                 await self.page.goto('https://www.instagram.com/explore/', wait_until='domcontentloaded', timeout=30000)
-                await self.human_delay(3, 5)
-                
-                if '/accounts/login' not in self.page.url:
-                    logger.info("Already logged in! Session verified.")
-                    # Save current cookies
-                    cookies = await self.context.cookies()
-                    with open(session_file, 'w') as f:
-                        json.dump(cookies, f)
-                    return True
+                await self.human_delay(5, 8)
+                if '/accounts/login' in self.page.url:
+                    logger.info("Session invalid after /explore/, need to login")
                 else:
-                    logger.info("Session invalid, need to login")
+                    # 2) Verificar com hashtag "genérica" (não usar "instagram" que pode ser tratada como pública)
+                    await self.page.goto('https://www.instagram.com/explore/tags/foto/', wait_until='domcontentloaded', timeout=30000)
+                    await self.human_delay(4, 6)
+                    if '/accounts/login' in self.page.url:
+                        logger.info("Session invalid for hashtag pages (redirect to login), need to login")
+                    else:
+                        logger.info("Already logged in! Session verified (explore + hashtag).")
+                        self._last_logged_account = account
+                        cookies = await self.context.cookies()
+                        with open(session_file, 'w') as f:
+                            json.dump(cookies, f)
+                        return True
             
-            # Need to perform login
-            logger.info("Going to login page...")
-            await self.page.goto('https://www.instagram.com/accounts/login/', wait_until='domcontentloaded', timeout=30000)
-            await self.human_delay(4, 6)
-            
-            # Wait for page to load
-            await self.page.wait_for_load_state('domcontentloaded', timeout=30000)
-            await self.human_delay(2, 4)
-            
-            # Find username input - try multiple selectors
-            username_selectors = [
-                'input[name="username"]',
-                'input[aria-label*="username"]',
-                'input[aria-label*="Phone"]',
-                'input[aria-label*="email"]',
-                'input[autocomplete="username"]',
-            ]
-            
+            # Need to perform login (form)
+            ok = await self._do_form_login_instagram(account)
+            if ok:
+                self._last_logged_account = account
+                session_file = self.get_session_file(account['username'])
+                cookies = await self.context.cookies()
+                with open(session_file, 'w') as f:
+                    json.dump(cookies, f)
+                logger.info(f"Session saved for {account['username']}")
+            return ok
+
+        except Exception as e:
+            logger.error(f"Login error: {str(e)}")
+            return False
+
+    async def _do_form_login_instagram(self, account: Dict) -> bool:
+        """Faz apenas o login por formulário (sem verificar sessão). Usado quando a hashtag redireciona para login."""
+        try:
+            logger.info("Going to login page (form login)...")
+            await self.page.goto('https://www.instagram.com/accounts/login/', wait_until='load', timeout=45000)
+            await self.human_delay(5, 8)
+
+            # Instagram é React; esperar a página estabilizar
             username_input = None
-            for selector in username_selectors:
-                try:
-                    username_input = await self.page.wait_for_selector(selector, timeout=5000, state='visible')
-                    if username_input:
-                        logger.info(f"Found username input with selector: {selector}")
-                        break
-                except:
-                    continue
-            
-            if not username_input:
-                logger.error("Could not find username input")
-                # Save screenshot for debugging
-                await self.page.screenshot(path='/tmp/login_debug.png')
-                return False
-            
-            # Click on input first (human behavior)
-            await username_input.click()
-            await self.human_delay(0.5, 1.0)
-            
-            # Type username slowly
-            logger.info(f"Typing username: {account['username']}")
-            await self.human_type(username_input, account['username'])
-            await self.human_delay(1, 2)
-            
-            # Find and fill password
-            password_selectors = [
-                'input[name="password"]',
-                'input[aria-label*="Password"]',
-                'input[aria-label*="Senha"]',
-                'input[type="password"]',
-            ]
-            
             password_input = None
-            for selector in password_selectors:
+            used_locators = False  # True se usamos get_by_label (preenche com .fill())
+
+            # 1) Tentar fluxo por label (get_by_label + .fill()) – mais estável no Instagram
+            for user_label in ["Phone number, username, or email", "Telefone, nome de usuário ou e-mail", "Username", "Phone"]:
                 try:
-                    password_input = await self.page.wait_for_selector(selector, timeout=5000, state='visible')
-                    if password_input:
-                        break
-                except:
+                    user_loc = self.page.get_by_label(user_label, exact=False)
+                    n = await user_loc.count()
+                    if n > 0:
+                        pwd_loc = self.page.get_by_label("Password", exact=False)
+                        if await pwd_loc.count() == 0:
+                            pwd_loc = self.page.get_by_label("Senha", exact=False)
+                        if await pwd_loc.count() > 0:
+                            logger.info(f"Using label flow: username label '{user_label}'")
+                            await user_loc.first.click()
+                            await self.human_delay(0.3, 0.6)
+                            await user_loc.first.fill(account['username'])
+                            await self.human_delay(1, 2)
+                            await pwd_loc.first.click()
+                            await self.human_delay(0.3, 0.6)
+                            await pwd_loc.first.fill(account['password'])
+                            await self.human_delay(1, 2)
+                            used_locators = True
+                            break
+                except Exception as e:
+                    logger.debug(f"Label flow failed ({user_label}): {e}")
                     continue
-            
-            if password_input:
-                await password_input.click()
+
+            # 2) Fallback: seletores CSS + human_type
+            if not used_locators:
+                for selector in [
+                    'input[name="username"]',
+                    'input[aria-label*="username"]',
+                    'input[aria-label*="Phone"]',
+                    'input[aria-label*="email"]',
+                    'input[aria-label*="Telefone"]',
+                    'input[autocomplete="username"]',
+                    'form input[type="text"]',
+                ]:
+                    try:
+                        username_input = await self.page.wait_for_selector(selector, timeout=4000, state='visible')
+                        if username_input:
+                            logger.info(f"Found username input: {selector}")
+                            break
+                    except Exception:
+                        continue
+                if not username_input:
+                    username_input = await self.page.query_selector('form input[type="text"]')
+                if not username_input:
+                    logger.error("Could not find username input")
+                    await self.page.screenshot(path='/tmp/login_debug.png')
+                    return False
+                await username_input.click()
                 await self.human_delay(0.5, 1.0)
-                logger.info("Typing password...")
-                await self.human_type(password_input, account['password'])
+                logger.info(f"Typing username: {account['username']}")
+                await self.human_type(username_input, account['username'])
                 await self.human_delay(1, 2)
+                for sel in ['input[name="password"]', 'input[type="password"]']:
+                    try:
+                        password_input = await self.page.query_selector(sel)
+                        if password_input:
+                            await password_input.click()
+                            await self.human_delay(0.5, 1.0)
+                            logger.info("Typing password...")
+                            await self.human_type(password_input, account['password'])
+                            await self.human_delay(1, 2)
+                            break
+                    except Exception:
+                        continue
             
-            # Move mouse before clicking submit
             await self.move_mouse_randomly(self.page)
             await self.human_delay(0.5, 1.0)
-            
-            # Find and click submit button
-            submit_selectors = [
-                'button[type="submit"]',
-                'button:has-text("Log in")',
-                'button:has-text("Entrar")',
-                'div[role="button"]:has-text("Log in")',
-            ]
-            
-            for selector in submit_selectors:
+
+            # Botão de login: por role/label primeiro, depois seletores
+            submit_clicked = False
+            for name in ["Log in", "Entrar", "Log in", "Login"]:
                 try:
-                    submit_btn = await self.page.query_selector(selector)
-                    if submit_btn:
-                        logger.info("Clicking login button...")
-                        await submit_btn.click()
+                    btn = self.page.get_by_role("button", name=name)
+                    if await btn.count() > 0:
+                        await btn.first.click()
+                        logger.info(f"Clicked login button (role): {name}")
+                        submit_clicked = True
                         break
-                except:
+                except Exception:
                     continue
+            if not submit_clicked:
+                for selector in ['button[type="submit"]', 'button:has-text("Log in")', 'button:has-text("Entrar")', 'div[role="button"]:has-text("Log in")']:
+                    try:
+                        submit_btn = await self.page.query_selector(selector)
+                        if submit_btn:
+                            await submit_btn.click()
+                            logger.info("Clicked login button (selector)")
+                            break
+                    except Exception:
+                        continue
             
             # Wait for login to complete
             logger.info("Waiting for login to complete...")
@@ -752,23 +855,14 @@ class HumanLikeScraper:
                 return False
             
             if '/accounts/login' not in current_url:
-                logger.info("Login successful!")
-                
-                # Save session cookies
-                cookies = await self.context.cookies()
-                with open(session_file, 'w') as f:
-                    json.dump(cookies, f)
-                logger.info(f"Session saved for {account['username']}")
-                
+                logger.info("Form login successful!")
                 return True
-            
-            logger.warning("Login may have failed")
+            logger.warning("Form login may have failed")
             return False
-            
         except Exception as e:
-            logger.error(f"Login error: {str(e)}")
+            logger.error(f"Form login error: {str(e)}")
             return False
-    
+
     async def scrape_profile(self, username: str) -> Optional[Dict]:
         """Scrape a single Instagram profile with human-like behavior"""
         try:
@@ -787,8 +881,13 @@ class HumanLikeScraper:
                     'bio': None,
                     'email': None,
                     'phone': None,
+                    'website': None,
+                    'profile_image_url': None,
+                    'location': None,
                     'profile_url': f'https://instagram.com/{username}',
                     'followers': None,
+                    'following': None,
+                    'posts': None,
                 }
             
             # Move mouse
@@ -810,41 +909,106 @@ class HumanLikeScraper:
                 'bio': None,
                 'email': None,
                 'phone': None,
+                'website': None,
+                'profile_image_url': None,
+                'location': None,
                 'profile_url': f'https://instagram.com/{username}',
                 'followers': None,
+                'following': None,
+                'posts': None,
             }
-            
+
+            def _parse_count(s: str) -> Optional[int]:
+                if not s:
+                    return None
+                s = s.replace(',', '').replace('.', '').replace(' ', '').strip()
+                if 'K' in s.upper():
+                    try:
+                        return int(float(s.upper().replace('K', '').replace('M', '')) * 1000)
+                    except ValueError:
+                        return None
+                if 'M' in s.upper():
+                    try:
+                        return int(float(s.upper().replace('M', '')) * 1000000)
+                    except ValueError:
+                        return None
+                if 'mil' in s.lower():
+                    s = s.lower().replace('mil', '')
+                nums = re.findall(r'\d+', s)
+                return int(nums[0]) if nums else None
+
+            # Tentar extrair do JSON embutido (biografia, foto, stats)
+            try:
+                embed = await self.page.evaluate(
+                    r'() => { const scripts = document.querySelectorAll("script"); '
+                    r'for (const s of scripts) { const t = s.textContent || ""; '
+                    r'if (!t.includes("edge_followed_by")) continue; '
+                    r'const fr = t.match(/"edge_followed_by":\s*\{\s*"count":\s*(\d+)/); '
+                    r'const fg = t.match(/"edge_follow":\s*\{\s*"count":\s*(\d+)/); '
+                    r'const po = t.match(/"edge_owner_to_timeline_media":\s*\{\s*"count":\s*(\d+)/); '
+                    r'let bio = null; const bi = t.indexOf(\'"biography":"\'); '
+                    r'if (bi >= 0) { let start = bi + 12, end = start, esc = false; '
+                    r'while (end < t.length) { const c = t[end]; if (esc) { esc = false; end++; continue; } '
+                    r'if (c === "\\\\") { esc = true; end++; continue; } if (c === \'"\') break; end++; } '
+                    r'bio = t.slice(start, end).replace(/\\\\n/g, "\\n").replace(/\\\\"/g, \'"\').replace(/\\\\\\\\/g, "\\\\"); } '
+                    r'let pic = null; const p = t.match(/"profile_pic_url(?:_hd)?":\s*"([^"]+)"/); if (p) pic = p[1]; '
+                    r'return { followers: fr ? parseInt(fr[1],10) : null, following: fg ? parseInt(fg[1],10) : null, posts: po ? parseInt(po[1],10) : null, biography: bio, profile_pic_url: pic }; } '
+                    r'return null; }'
+                )
+                if embed:
+                    if embed.get('followers') is not None:
+                        result['followers'] = embed['followers']
+                    if embed.get('following') is not None:
+                        result['following'] = embed['following']
+                    if embed.get('posts') is not None:
+                        result['posts'] = embed['posts']
+                    if embed.get('biography'):
+                        raw_bio = embed['biography']
+                        if isinstance(raw_bio, str):
+                            try:
+                                raw_bio = raw_bio.encode().decode('unicode_escape')
+                            except Exception:
+                                pass
+                        result['bio'] = raw_bio
+                        contact = self.extract_contact_info(result['bio'])
+                        result['email'] = contact.get('email')
+                        result['phone'] = contact.get('phone')
+                        result['website'] = result['website'] or contact.get('website')
+                        result['location'] = self._extract_location_from_bio(result['bio'])
+                    if embed.get('profile_pic_url'):
+                        result['profile_image_url'] = embed['profile_pic_url']
+            except Exception as e:
+                logger.debug(f"Embed JSON extraction: {e}")
+
             # Get page text content for analysis
+            body_text = ""
             try:
                 body_text = await self.page.inner_text('body')
-                
-                # Try to extract followers - must be BEFORE "followers/seguidores" word
-                # Pattern: "1,234 followers" or "1.234 seguidores" (NOT "following/seguindo")
-                import re
-                
-                # More specific patterns to get followers (not following)
-                followers_patterns = [
-                    r'([\d,.]+[KMkm]?)\s*(?:followers|seguidores)(?!\s*\d)',  # "1234 followers" not followed by another number
-                    r'(?:^|\s)([\d,.]+[KMkm]?)\s+(?:followers|seguidores)',  # number + followers
-                ]
-                
-                for pattern in followers_patterns:
-                    match = re.search(pattern, body_text, re.IGNORECASE)
-                    if match:
-                        followers_str = match.group(1).replace(',', '').replace('.', '').strip()
-                        if 'K' in followers_str.upper():
-                            result['followers'] = int(float(followers_str.upper().replace('K', '')) * 1000)
-                        elif 'M' in followers_str.upper():
-                            result['followers'] = int(float(followers_str.upper().replace('M', '')) * 1000000)
-                        else:
-                            try:
-                                result['followers'] = int(followers_str)
-                            except:
-                                pass
-                        logger.info(f"Extracted followers from text: {result['followers']}")
-                        break
             except Exception as e:
-                logger.debug(f"Error extracting from body text: {e}")
+                logger.debug(f"Error getting body text: {e}")
+
+            # Extrair posts, followers, following do texto (fallback; só preenche se ainda estiver None)
+            try:
+                if body_text:
+                    if result['posts'] is None:
+                        posts_match = re.search(r'([\d,.]+[KMkm]?)\s*(?:posts|publicações|publicações?|post)', body_text, re.IGNORECASE)
+                        if posts_match:
+                            result['posts'] = _parse_count(posts_match.group(1))
+                    if result['followers'] is None:
+                        for pattern in [
+                            r'([\d,.]+[KMkm]?)\s*(?:followers|seguidores)(?!\s*\d)',
+                            r'(?:^|\s)([\d,.]+[KMkm]?)\s+(?:followers|seguidores)',
+                        ]:
+                            match = re.search(pattern, body_text, re.IGNORECASE)
+                            if match:
+                                result['followers'] = _parse_count(match.group(1))
+                                break
+                    if result['following'] is None:
+                        following_match = re.search(r'([\d,.]+[KMkm]?)\s*(?:following|seguindo)', body_text, re.IGNORECASE)
+                        if following_match:
+                            result['following'] = _parse_count(following_match.group(1))
+            except Exception as e:
+                logger.debug(f"Error extracting stats from text: {e}")
             
             # Try to extract name from header
             try:
@@ -864,75 +1028,163 @@ class HumanLikeScraper:
             except:
                 pass
             
-            # Try to extract bio
-            try:
-                bio_selectors = [
-                    'header section div > span',
-                    'div.-vDIg span',
-                    'header section span:not(:first-child)',
-                ]
-                for selector in bio_selectors:
-                    bio_elem = await self.page.query_selector(selector)
-                    if bio_elem:
-                        bio_text = await bio_elem.inner_text()
-                        if bio_text and len(bio_text) > 5:
-                            result['bio'] = bio_text.strip()
-                            contact = self.extract_contact_info(bio_text)
-                            result['email'] = contact['email']
-                            result['phone'] = contact['phone']
-                            break
-            except:
-                pass
-            
-            # Try to extract followers count
-            try:
-                followers_selectors = [
-                    'a[href*="followers"] span',
-                    'li:has-text("followers") span',
-                    'span:has-text("seguidores")',
-                ]
-                for selector in followers_selectors:
-                    followers_elem = await self.page.query_selector(selector)
-                    if followers_elem:
-                        followers_text = await followers_elem.inner_text()
-                        # Parse count
-                        followers_text = followers_text.replace(',', '').replace('.', '').strip()
-                        if 'K' in followers_text or 'k' in followers_text:
-                            result['followers'] = int(float(followers_text.replace('K', '').replace('k', '').replace('mil', '')) * 1000)
-                        elif 'M' in followers_text or 'm' in followers_text:
-                            result['followers'] = int(float(followers_text.replace('M', '').replace('m', '')) * 1000000)
-                        else:
+            # Expandir "mais" na bio se existir (para pegar texto completo)
+            if result.get('bio') is None:
+                try:
+                    more_loc = self.page.get_by_text("mais", exact=False).first
+                    if await more_loc.count() > 0:
+                        await more_loc.click(timeout=3000)
+                        await self.human_delay(1, 2)
+                    else:
+                        more_loc = self.page.get_by_text("more", exact=False).first
+                        if await more_loc.count() > 0:
+                            await more_loc.click(timeout=2000)
+                            await self.human_delay(1, 2)
+                except Exception:
+                    pass
+            # Extrair bio do DOM (se ainda não veio do embed) — vários seletores para pegar texto completo
+            if result.get('bio') is None:
+                try:
+                    stats_line = re.compile(
+                        r'^[\d.,\sKkMm]+(?:posts?|seguidores?|following|seguindo|publicações?)$',
+                        re.IGNORECASE
+                    )
+                    seen = set()
+                    bio_parts = []
+                    for selector in [
+                        'header section div > span', 'div.-vDIg span', 'header section span',
+                        'header section div', 'header span',
+                    ]:
+                        elems = await self.page.query_selector_all(selector)
+                        for elem in elems:
                             try:
-                                # Extract just numbers
-                                nums = re.findall(r'\d+', followers_text)
-                                if nums:
-                                    result['followers'] = int(nums[0])
-                            except:
-                                pass
-                        break
-            except:
-                pass
+                                t = await elem.inner_text()
+                                if not t or len(t) <= 2:
+                                    continue
+                                t = t.strip()
+                                if t in ('mais', 'more', '...'):
+                                    continue
+                                if stats_line.match(t):
+                                    continue
+                                # Evita duplicar e ignora trechos que já estão contidos em outro
+                                if t in seen or any(t in s or s in t for s in seen if len(t) > 5 and len(s) > 5):
+                                    continue
+                                if len(t) > 500:  # provavelmente pegou o bloco inteiro
+                                    bio_parts = [t]
+                                    break
+                                seen.add(t)
+                                bio_parts.append(t)
+                            except Exception:
+                                continue
+                        if len(bio_parts) == 1 and len(bio_parts[0]) > 500:
+                            break
+                    if bio_parts:
+                        full_bio = '\n'.join(bio_parts) if len(bio_parts) > 1 else bio_parts[0]
+                        # Remove estatísticas no meio do texto (ex.: "417 posts", "1.327 seguidores")
+                        full_bio = re.sub(
+                            r'[\s\n]*[\d.,KkMm]+\s*(?:posts?|seguidores?|following|seguindo|publicações?)[\s\n]*',
+                            ' ', full_bio, flags=re.IGNORECASE
+                        )
+                        full_bio = re.sub(r'\n\s*\n', '\n', full_bio).strip()
+                        if len(full_bio) > 10:
+                            result['bio'] = full_bio
+                            contact = self.extract_contact_info(full_bio)
+                            result['email'] = result['email'] or contact.get('email')
+                            result['phone'] = result['phone'] or contact.get('phone')
+                            result['website'] = result['website'] or contact.get('website')
+                            if result.get('location') is None:
+                                result['location'] = self._extract_location_from_bio(full_bio)
+                except Exception:
+                    pass
+            # Foto de perfil (fallback se não veio do embed)
+            if result.get('profile_image_url') is None:
+                try:
+                    img = await self.page.query_selector('header img[src*="cdninstagram"], header img[src*="fbcdn"]')
+                    if img:
+                        src = await img.get_attribute('src')
+                        if src and 'http' in src:
+                            result['profile_image_url'] = src
+                except Exception:
+                    pass
+            # Link do perfil (Instagram: campo "site" separado)
+            if result.get('website') is None:
+                try:
+                    link_elem = await self.page.query_selector('header section a[href^="http"]')
+                    if link_elem:
+                        href = await link_elem.get_attribute('href')
+                        if href and not any(x in href for x in ['instagram.com', 'facebook.com', 'l.instagram.com']):
+                            result['website'] = href.strip()
+                except Exception:
+                    pass
             
+            # Fallback: extrair por selectors (links do header: posts, followers, following)
+            try:
+                # Instagram: linha de stats costuma ser header ul li ou section com links
+                stat_links = await self.page.query_selector_all('header a[href]')
+                for link in stat_links:
+                    href = await link.get_attribute('href') or ''
+                    span = await link.query_selector('span')
+                    if not span:
+                        continue
+                    text = await span.inner_text()
+                    val = _parse_count(text)
+                    if val is None:
+                        continue
+                    if '/followers' in href or 'followers' in href.lower():
+                        if result['followers'] is None:
+                            result['followers'] = val
+                    elif '/following' in href or 'following' in href.lower():
+                        if result['following'] is None:
+                            result['following'] = val
+                # Posts: às vezes é o primeiro item (link para o perfil ou sem href específico)
+                if result['posts'] is None:
+                    for sel in ['a[href*="/"][role="link"] span', 'header ul li span', 'section ul li span']:
+                        elems = await self.page.query_selector_all(sel)
+                        for elem in elems:
+                            t = await elem.inner_text()
+                            if re.match(r'^[\d,.KkMm]+$', t.strip()):
+                                v = _parse_count(t)
+                                if v is not None and result['posts'] is None:
+                                    result['posts'] = v
+                                    break
+                        if result['posts'] is not None:
+                            break
+            except Exception:
+                pass
+
             # Simulate reading the profile
             await self.human_scroll(self.page, times=1)
             await self.human_delay(1, 2)
-            
-            logger.info(f"Scraped @{username}: name={result['name']}, followers={result['followers']}")
+
+            logger.info(
+                f"Scraped @{username}: name={result['name']}, followers={result['followers']}, "
+                f"following={result['following']}, posts={result['posts']}"
+            )
             return result
             
         except Exception as e:
             logger.error(f"Error scraping profile @{username}: {str(e)}")
             return None
     
-    async def scrape_hashtag(self, hashtag: str, max_profiles: int = 20) -> List[Dict]:
-        """Scrape profiles from a hashtag with human-like behavior"""
+    async def scrape_hashtag(
+        self,
+        hashtag: str,
+        max_profiles: int = 20,
+        exclude_usernames: Optional[Set[str]] = None,
+        scroll_times: int = 5,
+    ) -> List[Dict]:
+        """Scrape profiles from a hashtag with human-like behavior.
+        exclude_usernames: não retorna perfis já conhecidos (evita re-scrape).
+        scroll_times: quantas vezes rolar a página para carregar mais resultados.
+        """
         results = []
-        
+        exclude = exclude_usernames or set()
+
         try:
             hashtag_clean = hashtag.replace('#', '').strip()
             url = f"https://www.instagram.com/explore/tags/{hashtag_clean}/"
             
-            logger.info(f"Navigating to hashtag: #{hashtag_clean}")
+            logger.info(f"Navigating to hashtag: #{hashtag_clean} (scroll_times={scroll_times}, exclude={len(exclude)} usernames)")
             await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
             await self.human_delay(4, 6)
             
@@ -942,99 +1194,133 @@ class HumanLikeScraper:
             except Exception:
                 pass
             
-            # Log current URL (Instagram might redirect)
             current_url = self.page.url
             logger.info(f"Current URL: {current_url}")
             
-            # Check if we need to login
+            # Se redirecionou para login: forçar login por formulário (sem usar sessão) e tentar de novo
             if '/accounts/login' in current_url:
-                logger.warning("Need to login to view hashtag")
-                return results
+                account = self._last_logged_account or self.get_next_account()
+                if account:
+                    logger.warning("Hashtag redirected to login; forcing form login and retrying once...")
+                    re_logged = await self._do_form_login_instagram(account)
+                    if re_logged:
+                        self._last_logged_account = account
+                        try:
+                            session_file = self.get_session_file(account['username'])
+                            cookies = await self.context.cookies()
+                            with open(session_file, 'w') as f:
+                                json.dump(cookies, f)
+                        except Exception as e:
+                            logger.debug(f"Could not save session after re-login: {e}")
+                        await self.page.goto(url, wait_until='domcontentloaded', timeout=30000)
+                        await self.human_delay(4, 6)
+                        try:
+                            await self.page.wait_for_selector('a[href^="/"]', timeout=20000)
+                        except Exception:
+                            pass
+                        current_url = self.page.url
+                        if '/accounts/login' in current_url:
+                            logger.warning("Still on login page after form login; cannot view hashtag")
+                            return results
+                        logger.info("Form login OK, continuing with hashtag")
+                    else:
+                        logger.warning("Form login failed; cannot view hashtag")
+                        return results
+                else:
+                    logger.warning("Need to login to view hashtag (no scraping account configured)")
+                    return results
             
             # Scroll to load more content
-            logger.info("Scrolling to load content...")
-            await self.human_scroll(self.page, times=5)
+            logger.info(f"Scrolling to load content... ({scroll_times} times)")
+            await self.human_scroll(self.page, times=scroll_times)
             
-            usernames_found = set()
-            
-            # Get all links from the page
-            all_links = await self.page.query_selector_all('a')
-            logger.info(f"Found {len(all_links)} total links")
-            
-            # Extract usernames from different link patterns
-            for link in all_links:
-                if len(usernames_found) >= max_profiles * 2:
+            scraped_in_run: Set[str] = set()
+            max_links_to_visit = 80
+            scroll_retries = 5
+
+            for retry in range(scroll_retries):
+                if len(results) >= max_profiles:
                     break
-                
-                try:
-                    href = await link.get_attribute('href')
-                    if not href:
+                # Buscar só links de posts/reels do grid da hashtag (ignora header com perfil da conta)
+                reel_links = await self.page.query_selector_all('a[href*="/reel/"]')
+                post_links = await self.page.query_selector_all('a[href*="/p/"]')
+                seen_hrefs: Set[str] = set()
+                post_reel_hrefs: List[str] = []
+                for el in reel_links + post_links:
+                    try:
+                        h = await el.get_attribute('href')
+                        if h and h not in seen_hrefs:
+                            seen_hrefs.add(h)
+                            post_reel_hrefs.append(h)
+                    except Exception:
                         continue
-                    
-                    # Pattern 1: Direct profile links (e.g., /username/)
-                    if href.startswith('/') and '/' in href[1:]:
-                        parts = href.strip('/').split('/')
-                        if len(parts) == 1:  # Direct profile link
-                            username = parts[0]
-                            if self._is_valid_username(username):
-                                usernames_found.add(username)
-                                logger.info(f"Found profile link: @{username}")
-                    
-                    # Pattern 2: Reel links (e.g., /reel/ABC123/)
-                    if '/reel/' in href:
-                        # Visit reel to get username
-                        reel_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
-                        await self.page.goto(reel_url, wait_until='domcontentloaded', timeout=20000)
+                need = max_profiles - len(results)
+                logger.info(
+                    f"Hashtag #{hashtag_clean}: found {len(post_reel_hrefs)} post/reel links "
+                    f"(round {retry+1}/{scroll_retries}), need {need} more new leads (exclude={len(exclude)})"
+                )
+
+                links_visited = 0
+                for href in post_reel_hrefs:
+                    if len(results) >= max_profiles or links_visited >= max_links_to_visit:
+                        break
+                    try:
+                        full_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
+                        await self.page.goto(full_url, wait_until='domcontentloaded', timeout=20000)
                         await self.human_delay(2, 4)
-                        
-                        # Find username in reel page
-                        username = await self._extract_username_from_page()
-                        if username and self._is_valid_username(username):
-                            usernames_found.add(username)
-                            logger.info(f"Found username from reel: @{username}")
-                        
-                        # Go back to hashtag page
+                        username = await self._extract_username_from_page(exclude_usernames=exclude)
+                        if not username or not self._is_valid_username(username):
+                            links_visited += 1
+                            await self.page.goto(url, wait_until='domcontentloaded', timeout=20000)
+                            await self.human_delay(2, 3)
+                            continue
+                        if username in exclude or username in scraped_in_run:
+                            scraped_in_run.add(username)
+                            links_visited += 1
+                            await self.page.goto(url, wait_until='domcontentloaded', timeout=20000)
+                            await self.human_delay(2, 3)
+                            continue
+                        scraped_in_run.add(username)
+                        profile_data = await self.scrape_profile(username)
+                        if profile_data:
+                            profile_data['source'] = 'hashtag'
+                            results.append(profile_data)
+                            logger.info(f"New lead from hashtag: @{username} ({len(results)}/{max_profiles})")
+                            if len(results) >= max_profiles:
+                                break
+                        await self.human_delay(3, 6)
                         await self.page.goto(url, wait_until='domcontentloaded', timeout=20000)
                         await self.human_delay(2, 3)
-                    
-                    # Pattern 3: Post links (e.g., /p/ABC123/)
-                    if '/p/' in href:
-                        post_url = f"https://www.instagram.com{href}" if href.startswith('/') else href
-                        await self.page.goto(post_url, wait_until='domcontentloaded', timeout=20000)
-                        await self.human_delay(2, 4)
-                        
-                        username = await self._extract_username_from_page()
-                        if username and self._is_valid_username(username):
-                            usernames_found.add(username)
-                            logger.info(f"Found username from post: @{username}")
-                        
-                        await self.page.goto(url, wait_until='domcontentloaded', timeout=20000)
-                        await self.human_delay(2, 3)
-                        
-                except Exception as e:
-                    logger.debug(f"Error processing link: {e}")
-                    continue
+                        links_visited += 1
+                    except Exception as e:
+                        logger.debug(f"Error visiting post/reel: {e}")
+                        continue
+
+                if len(results) >= max_profiles:
+                    break
+                if retry < scroll_retries - 1:
+                    logger.info("Scrolling to load more posts from hashtag...")
+                    await self.human_scroll(self.page, times=5)
+                    await self.human_delay(3, 5)
             
-            logger.info(f"Collected {len(usernames_found)} unique usernames")
-            
-            # Scrape each profile
-            for username in list(usernames_found)[:max_profiles]:
-                profile_data = await self.scrape_profile(username)
-                if profile_data:
-                    profile_data['source'] = 'hashtag'
-                    results.append(profile_data)
-                
-                # Random delay between profiles
-                await self.human_delay(3, 6)
-            
+            logger.info(f"Hashtag #{hashtag_clean}: found {len(results)} leads (exclude={len(exclude)}, max {max_profiles})")
+        
         except Exception as e:
             logger.error(f"Error scraping hashtag #{hashtag}: {str(e)}")
         
         return results
     
-    async def scrape_search(self, keyword: str, max_profiles: int = 20) -> List[Dict]:
-        """Scrape profiles from Instagram search by keyword (people search)."""
+    async def scrape_search(
+        self,
+        keyword: str,
+        max_profiles: int = 20,
+        exclude_usernames: Optional[Set[str]] = None,
+    ) -> List[Dict]:
+        """Scrape profiles from Instagram search by keyword (people search).
+        exclude_usernames: não retorna perfis já conhecidos.
+        """
         results = []
+        exclude = exclude_usernames or set()
         try:
             # Instagram web: topsearch returns users, hashtags, places (same cookies as page)
             query = keyword.strip()
@@ -1051,6 +1337,13 @@ class HumanLikeScraper:
                     }
                 """, url)
                 data = json.loads(resp)
+                # Debug: log what topsearch returned (helps when result is 0)
+                users_raw = data.get("users")
+                if users_raw is not None:
+                    count = len(users_raw) if isinstance(users_raw, list) else (len(users_raw) if isinstance(users_raw, dict) else 0)
+                    logger.info(f"Instagram topsearch API returned: users count={count}, keys={list(data.keys())}")
+                else:
+                    logger.warning(f"Instagram topsearch API response has no 'users'; keys={list(data.keys())}")
             except Exception as e:
                 logger.warning(f"Instagram topsearch fetch failed: {e}, trying explore")
                 # Fallback: go to explore and look for profile links (less reliable)
@@ -1077,23 +1370,28 @@ class HumanLikeScraper:
             users = (data.get("users") or [])
             if isinstance(users, dict):
                 users = list(users.values()) if users else []
-            for item in users[:max_profiles]:
+            # Pegar só usuários novos (não em exclude), até max_profiles
+            count = 0
+            for item in users:
+                if count >= max_profiles:
+                    break
                 try:
                     if not isinstance(item, dict):
                         continue
                     user_obj = item.get("user") or item
                     username = (user_obj.get("username") if isinstance(user_obj, dict) else None) or item.get("username")
-                    if not username or not self._is_valid_username(username):
+                    if not username or not self._is_valid_username(username) or username in exclude:
                         continue
                     profile_data = await self.scrape_profile(username)
                     if profile_data:
                         profile_data['source'] = 'search'
                         results.append(profile_data)
+                        count += 1
                     await self.human_delay(2, 4)
                 except Exception as e:
                     logger.debug(f"Error scraping search result: {e}")
                     continue
-            logger.info(f"Instagram search '{keyword}': found {len(results)} leads")
+            logger.info(f"Instagram search '{keyword}': found {len(results)} leads (exclude={len(exclude)} usernames)")
         except Exception as e:
             logger.error(f"Error searching Instagram for {keyword}: {str(e)}")
         return results
@@ -1103,13 +1401,15 @@ class HumanLikeScraper:
         if not username:
             return False
         
-        # List of reserved/invalid paths
+        # Segmentos de URL do Instagram que não são usernames
         invalid = [
-            'p', 'reel', 'reels', 'explore', 'stories', 'accounts', 
-            'about', 'direct', 'popular', 'legal', 'privacy', 
-            'accounts/emailsignup', 'legal/privacy', 'tags'
+            'p', 'reel', 'reels', 'explore', 'stories', 'accounts',
+            'about', 'direct', 'popular', 'legal', 'privacy',
+            'accounts/emailsignup', 'legal/privacy', 'tags',
+            'web',  # /web/search, etc.
+            'api', 'developer', 'blog', 'help', 'contact', 'support',
+            'embed', 'tv', 'graphql', 'static', 'mail', 'i',
         ]
-        
         if username.lower() in invalid:
             return False
         
@@ -1123,28 +1423,41 @@ class HumanLikeScraper:
         
         return True
     
-    async def _extract_username_from_page(self) -> Optional[str]:
-        """Extract username from current post/reel page"""
+    async def _extract_username_from_page(
+        self, exclude_usernames: Optional[Set[str]] = None
+    ) -> Optional[str]:
+        """Extract username of the post/reel author from current page.
+        exclude_usernames: ignorar (ex.: conta de login que aparece no header).
+        """
+        exclude = exclude_usernames or set()
         try:
-            # Multiple selectors to find username
-            selectors = [
+            # Ordem: priorizar área do post/reel (autor), depois header genérico
+            # No post/reel o autor costuma estar em article, main ou na primeira section do conteúdo
+            area_selectors = [
+                'article header a[href^="/"]',
+                'main header a[href^="/"]',
+                'article a[href^="/"]',
+                'main a[href^="/"]',
+                'section a[href^="/"]',
                 'header a[href^="/"]',
-                'a[role="link"][tabindex="0"]',
-                'span a[href^="/"]',
-                'div[role="button"] a[href^="/"]',
+                'a[role="link"][href^="/"]',
             ]
-            
-            for selector in selectors:
+            for selector in area_selectors:
                 elements = await self.page.query_selector_all(selector)
                 for elem in elements:
                     href = await elem.get_attribute('href')
-                    if href and href.startswith('/'):
-                        username = href.strip('/').split('/')[0]
-                        if self._is_valid_username(username):
-                            return username
+                    if not href or not href.startswith('/'):
+                        continue
+                    parts = href.strip('/').split('/')
+                    username = parts[0] if parts else None
+                    if (
+                        username
+                        and self._is_valid_username(username)
+                        and username not in exclude
+                    ):
+                        return username
         except Exception as e:
             logger.debug(f"Error extracting username: {e}")
-        
         return None
     
     async def close(self):
@@ -1170,36 +1483,103 @@ async def scrape_profiles(request: ScrapeRequest):
     errors = []
     
     if platform == "tiktok":
-        # TikTok scraping
         scraper = TikTokScraper(proxies)
-        
+        tiktok_has_location = bool(request.location and request.location.strip())
+        LOCATION_SEARCH_TIMEOUT_SEC = 3600
+        BATCH_PER_SOURCE = 15
+        client_exclude = set(request.exclude_usernames or [])
+        if client_exclude:
+            logger.info(f"TikTok: excluding {len(client_exclude)} existing client lead(s)")
+
         try:
             proxy = scraper.get_proxy()
             if proxy:
                 logger.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
             await scraper.setup_browser(proxy=proxy)
-            
-            # Scrape hashtags
-            for hashtag in request.hashtags:
-                try:
-                    leads = await scraper.scrape_hashtag(hashtag, max_profiles=request.max_profiles)
-                    all_leads.extend(leads)
-                    logger.info(f"TikTok hashtag #{hashtag}: found {len(leads)} leads")
-                except Exception as e:
-                    error_msg = f"Error scraping TikTok hashtag {hashtag}: {str(e)}"
-                    logger.error(error_msg)
-                    errors.append(error_msg)
-            
-            # Scrape keywords (search)
-            for keyword in request.keywords:
-                try:
-                    leads = await scraper.scrape_search(keyword, max_profiles=request.max_profiles)
-                    all_leads.extend(leads)
-                    logger.info(f"TikTok search '{keyword}': found {len(leads)} leads")
-                except Exception as e:
-                    error_msg = f"Error searching TikTok for {keyword}: {str(e)}"
-                    logger.error(error_msg)
-                    errors.append(error_msg)
+
+            if tiktok_has_location:
+                deadline = time.monotonic() + LOCATION_SEARCH_TIMEOUT_SEC
+                seen_usernames: Set[str] = set(client_exclude)
+                round_num = 0
+                logger.info(
+                    f"Location filter active (TikTok): will search up to 1h until {request.max_profiles} leads match '{request.location}'"
+                )
+                while time.monotonic() < deadline:
+                    matching = [l for l in all_leads if _lead_matches_location(l, request.location)]
+                    if len(matching) >= request.max_profiles:
+                        break
+                    round_num += 1
+                    for hashtag in request.hashtags:
+                        if time.monotonic() >= deadline:
+                            break
+                        try:
+                            leads = await scraper.scrape_hashtag(
+                                hashtag,
+                                max_profiles=BATCH_PER_SOURCE,
+                                exclude_usernames=seen_usernames,
+                            )
+                            for lead in leads:
+                                seen_usernames.add(lead["username"])
+                                all_leads.append(lead)
+                            if leads:
+                                logger.info(f"TikTok hashtag #{hashtag} (round {round_num}): +{len(leads)} leads")
+                        except Exception as e:
+                            error_msg = f"Error scraping TikTok hashtag {hashtag}: {str(e)}"
+                            logger.error(error_msg)
+                            errors.append(error_msg)
+                    for keyword in request.keywords:
+                        if time.monotonic() >= deadline:
+                            break
+                        try:
+                            leads = await scraper.scrape_search(
+                                keyword,
+                                max_profiles=BATCH_PER_SOURCE,
+                                exclude_usernames=seen_usernames,
+                            )
+                            for lead in leads:
+                                seen_usernames.add(lead["username"])
+                                all_leads.append(lead)
+                            if leads:
+                                logger.info(f"TikTok search '{keyword}' (round {round_num}): +{len(leads)} leads")
+                        except Exception as e:
+                            error_msg = f"Error searching TikTok for {keyword}: {str(e)}"
+                            logger.error(error_msg)
+                            errors.append(error_msg)
+                    matching = [l for l in all_leads if _lead_matches_location(l, request.location)]
+                    elapsed = int(LOCATION_SEARCH_TIMEOUT_SEC - (deadline - time.monotonic()))
+                    logger.info(
+                        f"TikTok location round {round_num}: {len(all_leads)} total, {len(matching)} matching "
+                        f"'{request.location}' (elapsed ~{elapsed}s)"
+                    )
+                    if len(matching) >= request.max_profiles:
+                        break
+                    if not (request.hashtags or request.keywords):
+                        break
+                if time.monotonic() >= deadline:
+                    logger.info("TikTok location search stopped: 1 hour limit reached")
+            else:
+                for hashtag in request.hashtags:
+                    try:
+                        leads = await scraper.scrape_hashtag(
+                            hashtag,
+                            max_profiles=request.max_profiles,
+                            exclude_usernames=client_exclude,
+                        )
+                        all_leads.extend(leads)
+                        logger.info(f"TikTok hashtag #{hashtag}: found {len(leads)} leads")
+                    except Exception as e:
+                        errors.append(f"Error scraping TikTok hashtag {hashtag}: {str(e)}")
+                for keyword in request.keywords:
+                    try:
+                        leads = await scraper.scrape_search(
+                            keyword,
+                            max_profiles=request.max_profiles,
+                            exclude_usernames=client_exclude,
+                        )
+                        all_leads.extend(leads)
+                        logger.info(f"TikTok search '{keyword}': found {len(leads)} leads")
+                    except Exception as e:
+                        errors.append(f"Error searching TikTok for {keyword}: {str(e)}")
             
         finally:
             await scraper.close()
@@ -1210,6 +1590,8 @@ async def scrape_profiles(request: ScrapeRequest):
         scraper = HumanLikeScraper(accounts, proxies)
         
         try:
+            if not accounts:
+                logger.warning("No Instagram scraping accounts provided; search may return 0 results (login required for topsearch)")
             proxy = scraper.get_next_proxy() if proxies else None
             if proxy:
                 logger.info(f"Using proxy: {proxy['host']}:{proxy['port']}")
@@ -1221,33 +1603,126 @@ async def scrape_profiles(request: ScrapeRequest):
                 logged_in = await scraper.login_instagram(account)
                 if not logged_in:
                     logger.warning("Could not login, some features may be limited")
-            
-            # Scrape hashtags
-            for hashtag in request.hashtags:
-                try:
-                    leads = await scraper.scrape_hashtag(hashtag, max_profiles=request.max_profiles)
-                    all_leads.extend(leads)
-                    logger.info(f"Instagram hashtag #{hashtag}: found {len(leads)} leads")
-                except Exception as e:
-                    error_msg = f"Error scraping hashtag {hashtag}: {str(e)}"
-                    logger.error(error_msg)
-                    errors.append(error_msg)
-            
-            # Scrape keywords (search people)
-            for keyword in request.keywords:
-                try:
-                    leads = await scraper.scrape_search(keyword, max_profiles=request.max_profiles)
-                    all_leads.extend(leads)
-                    logger.info(f"Instagram search '{keyword}': found {len(leads)} leads")
-                except Exception as e:
-                    error_msg = f"Error searching Instagram for {keyword}: {str(e)}"
-                    logger.error(error_msg)
-                    errors.append(error_msg)
+
+            has_location_filter = bool(request.location and request.location.strip())
+            LOCATION_SEARCH_TIMEOUT_SEC = 3600  # 1 hora
+            BATCH_PER_SOURCE = 15
+            MIN_SCROLL_TIMES = 5
+
+            # Nunca incluir as contas de login nem leads que o cliente já tem
+            login_usernames = {a.get("username") for a in accounts if a.get("username")}
+            client_exclude = set(request.exclude_usernames or [])
+            if client_exclude:
+                logger.info(f"Excluding {len(client_exclude)} existing client lead(s) so we only return new ones")
+            if login_usernames:
+                logger.info(f"Excluding login account(s) from leads: {login_usernames}")
+            initial_exclude = login_usernames | client_exclude
+
+            if has_location_filter:
+                # Loop até completar a lista solicitada ou 1h: busca perfis, filtra por cidade, repete
+                deadline = time.monotonic() + LOCATION_SEARCH_TIMEOUT_SEC
+                seen_usernames: Set[str] = set(initial_exclude)
+                round_num = 0
+                logger.info(
+                    f"Location filter active: will search up to 1h until {request.max_profiles} leads match '{request.location}'"
+                )
+                while time.monotonic() < deadline:
+                    matching = [l for l in all_leads if _lead_matches_location(l, request.location)]
+                    if len(matching) >= request.max_profiles:
+                        logger.info(f"Location target reached: {len(matching)} leads match '{request.location}'")
+                        break
+                    round_num += 1
+                    scroll_times = MIN_SCROLL_TIMES + round_num * 3
+                    for hashtag in request.hashtags:
+                        if time.monotonic() >= deadline:
+                            break
+                        try:
+                            leads = await scraper.scrape_hashtag(
+                                hashtag,
+                                max_profiles=BATCH_PER_SOURCE,
+                                exclude_usernames=seen_usernames,
+                                scroll_times=scroll_times,
+                            )
+                            for lead in leads:
+                                seen_usernames.add(lead["username"])
+                                if lead["username"] not in login_usernames:
+                                    all_leads.append(lead)
+                            if leads:
+                                logger.info(f"Instagram hashtag #{hashtag} (round {round_num}): +{len(leads)} leads")
+                        except Exception as e:
+                            error_msg = f"Error scraping hashtag {hashtag}: {str(e)}"
+                            logger.error(error_msg)
+                            errors.append(error_msg)
+                    for keyword in request.keywords:
+                        if time.monotonic() >= deadline:
+                            break
+                        try:
+                            leads = await scraper.scrape_search(
+                                keyword,
+                                max_profiles=BATCH_PER_SOURCE,
+                                exclude_usernames=seen_usernames,
+                            )
+                            for lead in leads:
+                                seen_usernames.add(lead["username"])
+                                if lead["username"] not in login_usernames:
+                                    all_leads.append(lead)
+                            if leads:
+                                logger.info(f"Instagram search '{keyword}' (round {round_num}): +{len(leads)} leads")
+                        except Exception as e:
+                            error_msg = f"Error searching Instagram for {keyword}: {str(e)}"
+                            logger.error(error_msg)
+                            errors.append(error_msg)
+                    matching = [l for l in all_leads if _lead_matches_location(l, request.location)]
+                    elapsed = int(LOCATION_SEARCH_TIMEOUT_SEC - (deadline - time.monotonic()))
+                    logger.info(
+                        f"Location search round {round_num}: {len(all_leads)} total, {len(matching)} matching "
+                        f"'{request.location}' (elapsed ~{elapsed}s, limit 1h)"
+                    )
+                    if len(matching) >= request.max_profiles:
+                        break
+                    if not (request.hashtags or request.keywords):
+                        break
+                if time.monotonic() >= deadline:
+                    logger.info("Location search stopped: 1 hour limit reached")
+            else:
+                # Sem filtro de cidade: excluir contas de login e leads que o cliente já tem; continuar até ter max_profiles novos
+                fetch_per_source = request.max_profiles
+                for hashtag in request.hashtags:
+                    try:
+                        leads = await scraper.scrape_hashtag(
+                            hashtag,
+                            max_profiles=fetch_per_source,
+                            exclude_usernames=initial_exclude,
+                        )
+                        for lead in leads:
+                            if lead["username"] not in login_usernames:
+                                all_leads.append(lead)
+                        logger.info(f"Instagram hashtag #{hashtag}: found {len(leads)} leads")
+                    except Exception as e:
+                        error_msg = f"Error scraping hashtag {hashtag}: {str(e)}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
+                for keyword in request.keywords:
+                    try:
+                        leads = await scraper.scrape_search(
+                            keyword,
+                            max_profiles=fetch_per_source,
+                            exclude_usernames=initial_exclude,
+                        )
+                        for lead in leads:
+                            if lead["username"] not in login_usernames:
+                                all_leads.append(lead)
+                        logger.info(f"Instagram search '{keyword}': found {len(leads)} leads")
+                    except Exception as e:
+                        error_msg = f"Error searching Instagram for {keyword}: {str(e)}"
+                        logger.error(error_msg)
+                        errors.append(error_msg)
             
         finally:
             await scraper.close()
     
-    # If location was provided, keep only leads that mention that location (bio/name)
+    # Se há filtro de cidade: continuar buscando até atingir o limite de leads que batem com a localidade
+    # (na primeira passada já pedimos mais candidatos por fonte; aqui só filtramos e limitamos)
     if request.location and request.location.strip():
         before = len(all_leads)
         all_leads = [l for l in all_leads if _lead_matches_location(l, request.location)]
@@ -1260,6 +1735,14 @@ async def scrape_profiles(request: ScrapeRequest):
         if lead['username'] not in seen_usernames:
             seen_usernames.add(lead['username'])
             lead['platform'] = platform
+            if 'posts' not in lead:
+                lead['posts'] = None
+            if 'website' not in lead:
+                lead['website'] = None
+            if 'profile_image_url' not in lead:
+                lead['profile_image_url'] = None
+            if 'location' not in lead:
+                lead['location'] = None
             unique_leads.append(LeadResult(**lead))
     
     unique_leads = unique_leads[:request.max_profiles]

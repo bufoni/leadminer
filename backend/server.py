@@ -156,9 +156,13 @@ class Lead(BaseModel):
     bio: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    website: Optional[str] = None  # site/link do perfil
+    profile_image_url: Optional[str] = None  # URL da foto de perfil
+    location: Optional[str] = None  # cidade/região
     profile_url: str
     followers: Optional[int] = None
-    following: Optional[int] = None  # TikTok
+    following: Optional[int] = None
+    posts: Optional[int] = None  # Instagram: número de publicações
     likes: Optional[int] = None  # TikTok
     videos: Optional[int] = None  # TikTok
     platform: str = "instagram"  # "instagram" or "tiktok"
@@ -1463,12 +1467,24 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         accounts = await db.scraping_accounts.find({"status": "active"}, {"_id": 0}).to_list(100)
         proxies = await db.proxies.find({"status": "active"}, {"_id": 0}).to_list(100)
         
+        # Apenas os leads mais recentes no exclude (evita payload gigante para quem tem 100k+ leads)
+        EXCLUDE_LEADS_LIMIT = 2000
+        existing_leads = await db.leads.find(
+            {"user_id": user_id},
+            {"username": 1},
+        ).sort("created_at", -1).to_list(EXCLUDE_LEADS_LIMIT)
+        exclude_usernames = [doc["username"] for doc in existing_leads if doc.get("username")]
+        if len(exclude_usernames) >= EXCLUDE_LEADS_LIMIT:
+            logging.info(f"Exclude capped at {EXCLUDE_LEADS_LIMIT} recent leads (user may have more)")
+        logging.info(f"Scraper exclude: sending {len(exclude_usernames)} existing lead usernames for user {user_id}")
+        
         # Prepare request to scraper service
         scrape_request = {
             "keywords": keywords,
             "hashtags": hashtags,
             "location": location,
             "max_profiles": leads_to_fetch,
+            "exclude_usernames": exclude_usernames,
             "accounts": [{"username": a["username"], "password": a["password"], "status": a["status"]} for a in accounts],
             "proxies": [{"host": p["host"], "port": p["port"], "username": p.get("username"), "password": p.get("password"), "status": p["status"]} for p in proxies],
             "platform": platform  # "instagram" or "tiktok"
@@ -1508,29 +1524,38 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
         # Limit to requested leads
         all_leads = all_leads[:leads_to_fetch]
         
-        # Save leads to database with scoring
+        # Save leads to database with scoring (evitar duplicar por user_id + username)
+        leads_inserted = 0
         for lead_data in all_leads:
+            username = lead_data.get('username', '')
+            if not username:
+                continue
+            existing = await db.leads.find_one({"user_id": user_id, "username": username})
+            if existing:
+                logging.info(f"Lead @{username} already exists for user, skipping duplicate")
+                continue
             # Calculate lead score
             score, score_breakdown = calculate_lead_score(lead_data)
             qualification = get_qualification_from_score(score)
-            
-            # Determine profile URL based on platform
             if platform == "tiktok":
-                profile_url = lead_data.get('profile_url', f"https://tiktok.com/@{lead_data.get('username', '')}")
+                profile_url = lead_data.get('profile_url', f"https://tiktok.com/@{username}")
             else:
-                profile_url = lead_data.get('profile_url', f"https://instagram.com/{lead_data.get('username', '')}")
-            
+                profile_url = lead_data.get('profile_url', f"https://instagram.com/{username}")
             lead = Lead(
                 search_id=search_id,
                 user_id=user_id,
-                username=lead_data.get('username', ''),
+                username=username,
                 name=lead_data.get('name'),
                 bio=lead_data.get('bio'),
                 email=lead_data.get('email'),
                 phone=lead_data.get('phone'),
+                website=lead_data.get('website'),
+                profile_image_url=lead_data.get('profile_image_url'),
+                location=lead_data.get('location'),
                 profile_url=profile_url,
                 followers=lead_data.get('followers'),
                 following=lead_data.get('following'),
+                posts=lead_data.get('posts'),
                 likes=lead_data.get('likes'),
                 videos=lead_data.get('videos'),
                 platform=platform,
@@ -1543,13 +1568,12 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
             lead_dict = lead.model_dump()
             lead_dict["created_at"] = lead_dict["created_at"].isoformat()
             await db.leads.insert_one(lead_dict)
-            
+            leads_inserted += 1
             logging.info(f"Lead @{lead.username} ({platform}) scored: {score} ({qualification})")
         
-        # Update user's leads count
         await db.users.update_one(
             {"id": user_id},
-            {"$inc": {"leads_used": len(all_leads)}}
+            {"$inc": {"leads_used": leads_inserted}}
         )
         
         await db.searches.update_one(

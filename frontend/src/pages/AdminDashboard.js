@@ -462,9 +462,13 @@ const AdminDashboard = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium text-sm">
-                        {search.keywords?.join(', ') || 'Sem palavras-chave'}
+                        {search.keywords?.length > 0
+                          ? search.keywords.join(', ')
+                          : search.hashtags?.length > 0
+                            ? `#${search.hashtags.join(' #')}`
+                            : 'Sem palavras-chave'}
                       </span>
-                      {search.hashtags?.length > 0 && (
+                      {search.hashtags?.length > 0 && search.keywords?.length > 0 && (
                         <span className="text-xs text-violet-400">
                           #{search.hashtags.join(' #')}
                         </span>
