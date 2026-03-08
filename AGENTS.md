@@ -21,3 +21,13 @@ LeadMiner is a SaaS lead generation platform (Brazilian market, Portuguese UI). 
 - Backend lint: `flake8 server.py --max-line-length=150` (existing warnings are in the codebase, not introduced by agent).
 - Backend tests: `REACT_APP_BACKEND_URL=http://localhost:8001 pytest backend/tests/ -v` (requires running backend).
 - The scraper service (port 8002) is optional — the backend has a built-in fallback scraper.
+
+### Scraper Service Notes
+
+- **Start**: `cd /workspace/scraper-service && uvicorn main:app --host 0.0.0.0 --port 8002` (requires `playwright install chromium` and `playwright install-deps chromium` first).
+- **Platforms**: Instagram, TikTok, LinkedIn, Facebook. Instagram requires scraping accounts (stored in `db.scraping_accounts`).
+- **Instagram login**: Instagram changed login form fields to `name="email"` and `name="pass"` with `div[role="button"]` submit. The scraper handles both old and new layouts. New device logins trigger `auth_platform/codeentry` verification — the scraper treats this as partial success and uses the API profile endpoint as fallback.
+- **Instagram API profile**: `_try_api_profile()` uses `api/v1/users/web_profile_info/` endpoint (requires `X-IG-App-ID: 936619743392459` header) which works reliably with partial sessions.
+- **Instagram keyword search** (`topsearch` API) requires a fully verified session — may return 0 results if the account hits a verification challenge.
+- **TikTok**: No login needed. Profile data extracted from `__UNIVERSAL_DATA_FOR_REHYDRATION__` JSON script tag.
+- **Data normalization**: All scrapers pass through `normalize_lead()` before returning, ensuring consistent field structure.
