@@ -129,7 +129,7 @@ class SearchCreate(BaseModel):
     hashtags: List[str] = []
     location: Optional[str] = None
     max_leads: int = 10  # Quantidade de leads desejada pelo usuário
-    platform: str = "instagram"  # "instagram" or "tiktok"
+    platform: str = "instagram"  # "instagram", "tiktok", "linkedin", "facebook"
 
 class Search(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -139,7 +139,7 @@ class Search(BaseModel):
     hashtags: List[str]
     location: Optional[str] = None
     max_leads: int = 10  # Quantidade solicitada pelo usuário
-    platform: str = "instagram"  # "instagram" or "tiktok"
+    platform: str = "instagram"  # "instagram", "tiktok", "linkedin", "facebook"
     status: str = "queued"
     progress: int = 0
     leads_found: int = 0
@@ -159,13 +159,14 @@ class Lead(BaseModel):
     website: Optional[str] = None  # site/link do perfil
     profile_image_url: Optional[str] = None  # URL da foto de perfil
     location: Optional[str] = None  # cidade/região
+    address: Optional[str] = None  # endereço completo
     profile_url: str
     followers: Optional[int] = None
     following: Optional[int] = None
     posts: Optional[int] = None  # Instagram: número de publicações
     likes: Optional[int] = None  # TikTok
     videos: Optional[int] = None  # TikTok
-    platform: str = "instagram"  # "instagram" or "tiktok"
+    platform: str = "instagram"  # "instagram", "tiktok", "linkedin", "facebook"
     status: str = "new"
     qualification: str = "morno"
     notes: str = ""
@@ -1552,6 +1553,7 @@ async def scrape_instagram(search_id: str, keywords: List[str], hashtags: List[s
                 website=lead_data.get('website'),
                 profile_image_url=lead_data.get('profile_image_url'),
                 location=lead_data.get('location'),
+                address=lead_data.get('address'),
                 profile_url=profile_url,
                 followers=lead_data.get('followers'),
                 following=lead_data.get('following'),
@@ -1817,7 +1819,7 @@ async def create_search(
     
     # Validate platform
     platform = search_data.platform.lower()
-    if platform not in ["instagram", "tiktok"]:
+    if platform not in ["instagram", "tiktok", "linkedin", "facebook"]:
         platform = "instagram"
     
     search = Search(
